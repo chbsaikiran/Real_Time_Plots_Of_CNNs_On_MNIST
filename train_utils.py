@@ -56,3 +56,46 @@ def get_random_test_samples(test_loader, num_samples=10):
     images, labels = next(data_iter)
     indices = torch.randperm(len(images))[:num_samples]
     return images[indices], labels[indices]
+
+def calculate_confusion_matrix(true_labels, pred_labels):
+    """Calculate confusion matrix for MNIST (10 classes)"""
+    matrix = np.zeros((10, 10), dtype=int)
+    for t, p in zip(true_labels, pred_labels):
+        matrix[t][p] += 1
+    return matrix
+
+def calculate_metrics(confusion_matrix):
+    """Calculate accuracy, precision, recall, and F1 score"""
+    # Calculate accuracy
+    total = confusion_matrix.sum()
+    correct = np.diag(confusion_matrix).sum()
+    accuracy = correct / total
+
+    # Calculate per-class metrics and average them
+    precisions = []
+    recalls = []
+    f1_scores = []
+
+    for i in range(10):  # For each class
+        true_positive = confusion_matrix[i][i]
+        false_positive = confusion_matrix[:, i].sum() - true_positive
+        false_negative = confusion_matrix[i, :].sum() - true_positive
+        
+        # Calculate precision
+        precision = true_positive / (true_positive + false_positive) if (true_positive + false_positive) > 0 else 0
+        precisions.append(precision)
+        
+        # Calculate recall
+        recall = true_positive / (true_positive + false_negative) if (true_positive + false_negative) > 0 else 0
+        recalls.append(recall)
+        
+        # Calculate F1 score
+        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+        f1_scores.append(f1)
+
+    return {
+        "accuracy": accuracy,
+        "precision": np.mean(precisions),
+        "recall": np.mean(recalls),
+        "f1_score": np.mean(f1_scores)
+    }

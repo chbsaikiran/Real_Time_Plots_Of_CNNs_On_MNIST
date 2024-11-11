@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from models.cnn_models import CNNModel
-from train_utils import get_data_loaders, train_batch, create_plot_data, get_random_test_samples
+from train_utils import get_data_loaders, train_batch, create_plot_data, get_random_test_samples, calculate_confusion_matrix, calculate_metrics
 import json
 import asyncio
 
@@ -20,6 +20,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Declare global variables for models
+model1 = None
+model2 = None
 
 @app.get("/")
 async def home(request: Request):
@@ -117,6 +121,7 @@ async def train_models(
                 await sio.emit('plot_update', plot_data)
 
     async def start_training():
+        global model1, model2
         try:
             # Initialize models
             model1 = CNNModel(model1_conv1, model1_conv2, model1_conv3).to(device)
@@ -137,18 +142,8 @@ async def train_models(
                 train_model(model2, optimizer2, criterion, train_loader2, model2_epochs, "model2")
             )
 
-            # Final evaluation
-            test_images, test_labels = get_random_test_samples(test_loader1)
-            with torch.no_grad():
-                pred1 = model1(test_images.to(device)).max(1)[1]
-                pred2 = model2(test_images.to(device)).max(1)[1]
-
             await sio.emit('training_complete', {
-                "test_results": {
-                    "true_labels": test_labels.tolist(),
-                    "model1_preds": pred1.tolist(),
-                    "model2_preds": pred2.tolist()
-                }
+                "status": "complete"
             })
 
         except Exception as e:
@@ -158,5 +153,73 @@ async def train_models(
     # Start training in background
     asyncio.create_task(start_training())
     return JSONResponse({"status": "Training started"})
+
+@app.get("/get_test_results")
+async def get_test_results():
+    try:
+        # Get data loaders
+        _, test_loader = get_data_loaders(batch_size=100)
+        
+        # Get random test samples
+        test_images, test_labels = get_random_test_samples(test_loader)
+        test_images = test_images.to(device)
+        
+        # Get predictions from both models
+        with torch.no_grad():
+            pred1 = model1(test_images).max(1)[1]
+            pred2 = model2(test_images).max(1)[1]
+        
+        return {
+            "true_labels": test_labels.tolist(),
+            "model1_preds": pred1.tolist(),
+            "model2_preds": pred2.tolist()
+        }
+    except Exception as e:
+        print(f"Error getting test results: {str(e)}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/get_model_metrics")
+async def get_model_metrics():
+    try:
+        # Get data loaders
+        _, test_loader = get_data_loaders(batch_size=100)
+        
+        # Initialize metrics
+        all_labels = []
+        all_preds1 = []
+        all_preds2 = []
+        
+        # Get predictions for entire test set
+        with torch.no_grad():
+            for images, labels in test_loader:
+                images = images.to(device)
+                pred1 = model1(images).max(1)[1]
+                pred2 = model2(images).max(1)[1]
+                
+                all_labels.extend(labels.tolist())
+                all_preds1.extend(pred1.tolist())
+                all_preds2.extend(pred2.tolist())
+        
+        # Calculate confusion matrices
+        conf_matrix1 = calculate_confusion_matrix(all_labels, all_preds1)
+        conf_matrix2 = calculate_confusion_matrix(all_labels, all_preds2)
+        
+        # Calculate metrics for both models
+        metrics1 = calculate_metrics(conf_matrix1)
+        metrics2 = calculate_metrics(conf_matrix2)
+        
+        return {
+            "model1": {
+                "confusion_matrix": conf_matrix1.tolist(),
+                **metrics1
+            },
+            "model2": {
+                "confusion_matrix": conf_matrix2.tolist(),
+                **metrics2
+            }
+        }
+    except Exception as e:
+        print(f"Error getting model metrics: {str(e)}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 app = socket_app

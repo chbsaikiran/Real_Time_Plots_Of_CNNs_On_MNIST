@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MNIST CNN Models Comparison</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>MNIST CNN Models Comparison</h1>
+        
+        <div class="models-config">
+            <div class="model-config">
+                <h2>Model 1 Configuration</h2>
+                <form id="model1-form">
+                    <div class="form-group">
+                        <label>Conv1 Layers:</label>
+                        <input type="number" name="model1_conv1" value="32" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Conv2 Layers:</label>
+                        <input type="number" name="model1_conv2" value="64" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Conv3 Layers:</label>
+                        <input type="number" name="model1_conv3" value="128" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Optimizer:</label>
+                        <select name="model1_optimizer">
+                            <option value="adam">Adam</option>
+                            <option value="sgd">SGD</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Batch Size:</label>
+                        <input type="number" name="model1_batch_size" value="64" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Epochs:</label>
+                        <input type="number" name="model1_epochs" value="10" min="1">
+                    </div>
+                </form>
+            </div>
+            
+            <div class="model-config">
+                <h2>Model 2 Configuration</h2>
+                <form id="model2-form">
+                    <div class="form-group">
+                        <label>Conv1 Layers:</label>
+                        <input type="number" name="model2_conv1" value="16" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Conv2 Layers:</label>
+                        <input type="number" name="model2_conv2" value="32" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Conv3 Layers:</label>
+                        <input type="number" name="model2_conv3" value="64" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Optimizer:</label>
+                        <select name="model2_optimizer">
+                            <option value="adam">Adam</option>
+                            <option value="sgd">SGD</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Batch Size:</label>
+                        <input type="number" name="model2_batch_size" value="32" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Epochs:</label>
+                        <input type="number" name="model2_epochs" value="10" min="1">
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <button id="train-button" onclick="startTraining()">Train Models</button>
+        
+        <div class="progress-container">
+            <div class="progress-section">
+                <h3>Model 1 Progress</h3>
+                <div class="progress">
+                    <div id="progress1" class="progress-bar" style="width: 0%">0%</div>
+                </div>
+                <div id="status1" class="training-status">Waiting to start...</div>
+                <div id="metrics1" class="metrics">
+                    <span class="loss">Loss: -</span>
+                    <span class="accuracy">Accuracy: -</span>
+                </div>
+            </div>
+            <div class="progress-section">
+                <h3>Model 2 Progress</h3>
+                <div class="progress">
+                    <div id="progress2" class="progress-bar" style="width: 0%">0%</div>
+                </div>
+                <div id="status2" class="training-status">Waiting to start...</div>
+                <div id="metrics2" class="metrics">
+                    <span class="loss">Loss: -</span>
+                    <span class="accuracy">Accuracy: -</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="plots-container">
+            <div class="plot">
+                <h3>Loss Comparison</h3>
+                <div id="loss-plot" style="width:100%; height:400px;"></div>
+            </div>
+            <div class="plot">
+                <h3>Accuracy Comparison</h3>
+                <div id="acc-plot" style="width:100%; height:400px;"></div>
+            </div>
+        </div>
+        
+        <div id="test-results" class="test-results" style="display: none;">
+            <h2>Test Results</h2>
+            <div class="results-grid"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+    <script>
+        let socket;
+        const model1Data = {
+            losses: [],
+            accuracies: []
+        };
+        const model2Data = {
+            losses: [],
+            accuracies: []
+        };
+
+        function initPlots() {
+            const lossTrace1 = {
+                y: [],
+                x: [],
+                name: 'Model 1',
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: {color: '#3498db'}
+            };
+            
+            const lossTrace2 = {
+                y: [],
+                x: [],
+                name: 'Model 2',
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: {color: '#e74c3c'}
+            };
+
+            const accTrace1 = {
+                y: [],
+                x: [],
+                name: 'Model 1',
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: {color: '#3498db'}
+            };
+            
+            const accTrace2 = {
+                y: [],
+                x: [],
+                name: 'Model 2',
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: {color: '#e74c3c'}
+            };
+
+            const lossLayout = {
+                title: 'Training Loss',
+                xaxis: { title: 'Batch (x100)' },
+                yaxis: { title: 'Loss' },
+                showlegend: true,
+                legend: {
+                    x: 1.1,
+                    xanchor: 'left',
+                    y: 1,
+                    yanchor: 'top',
+                    bgcolor: 'rgba(255, 255, 255, 0.8)',
+                    bordercolor: '#E2E2E2',
+                    borderwidth: 1
+                },
+                margin: {
+                    l: 50,
+                    r: 100,
+                    t: 50,
+                    b: 50
+                }
+            };
+
+            const accLayout = {
+                title: 'Training Accuracy',
+                xaxis: { title: 'Batch (x100)' },
+                yaxis: { title: 'Accuracy (%)' },
+                showlegend: true,
+                legend: {
+                    x: 1.1,
+                    xanchor: 'left',
+                    y: 1,
+                    yanchor: 'top',
+                    bgcolor: 'rgba(255, 255, 255, 0.8)',
+                    bordercolor: '#E2E2E2',
+                    borderwidth: 1
+                },
+                margin: {
+                    l: 50,
+                    r: 100,
+                    t: 50,
+                    b: 50
+                }
+            };
+
+            Plotly.newPlot('loss-plot', [lossTrace1, lossTrace2], lossLayout);
+            Plotly.newPlot('acc-plot', [accTrace1, accTrace2], accLayout);
+        }
+
+        function updatePlots(data) {
+            const modelData = data.model === 'model1' ? model1Data : model2Data;
+            modelData.losses = data.losses;
+            modelData.accuracies = data.accuracies;
+
+            const xRange = [...Array(Math.max(model1Data.losses.length, model2Data.losses.length)).keys()];
+
+            // Update loss plot
+            Plotly.update('loss-plot', {
+                'x': [
+                    xRange.slice(0, model1Data.losses.length),
+                    xRange.slice(0, model2Data.losses.length)
+                ],
+                'y': [model1Data.losses, model2Data.losses]
+            });
+
+            // Update accuracy plot
+            Plotly.update('acc-plot', {
+                'x': [
+                    xRange.slice(0, model1Data.accuracies.length),
+                    xRange.slice(0, model2Data.accuracies.length)
+                ],
+                'y': [model1Data.accuracies, model2Data.accuracies]
+            });
+        }
+
+        async function startTraining() {
+            // Reset UI state
+            document.getElementById('train-button').disabled = true;
+            document.getElementById('progress1').style.width = '0%';
+            document.getElementById('progress1').textContent = '0%';
+            document.getElementById('progress2').style.width = '0%';
+            document.getElementById('progress2').textContent = '0%';
+            document.getElementById('status1').textContent = 'Waiting to start...';
+            document.getElementById('status2').textContent = 'Waiting to start...';
+            document.getElementById('test-results').style.display = 'none';
+
+            // Initialize plots
+            initPlots();
+
+            // Setup WebSocket connection
+            socket = io();
+
+            socket.on('plot_update', function(data) {
+                // Update progress bars and status
+                if (data.model === "model1") {
+                    document.getElementById('progress1').style.width = `${data.progress1}%`;
+                    document.getElementById('progress1').textContent = `${data.progress1}%`;
+                    document.getElementById('status1').textContent = 
+                        `Epoch ${data.epoch}/${data.total_epochs}, Batch ${data.batch}/${data.total_batches}`;
+                    document.querySelector('#metrics1 .loss').textContent = 
+                        `Loss: ${data.current_loss.toFixed(4)}`;
+                    document.querySelector('#metrics1 .accuracy').textContent = 
+                        `Accuracy: ${data.current_acc.toFixed(2)}%`;
+                } else {
+                    document.getElementById('progress2').style.width = `${data.progress2}%`;
+                    document.getElementById('progress2').textContent = `${data.progress2}%`;
+                    document.getElementById('status2').textContent = 
+                        `Epoch ${data.epoch}/${data.total_epochs}, Batch ${data.batch}/${data.total_batches}`;
+                    document.querySelector('#metrics2 .loss').textContent = 
+                        `Loss: ${data.current_loss.toFixed(4)}`;
+                    document.querySelector('#metrics2 .accuracy').textContent = 
+                        `Accuracy: ${data.current_acc.toFixed(2)}%`;
+                }
+
+                // Update plots
+                updatePlots(data);
+            });
+
+            socket.on('training_complete', function(data) {
+                // Show test results
+                const resultsDiv = document.querySelector('.results-grid');
+                resultsDiv.innerHTML = '';
+                
+                for (let i = 0; i < data.test_results.true_labels.length; i++) {
+                    const resultItem = document.createElement('div');
+                    resultItem.className = 'result-item';
+                    resultItem.innerHTML = `
+                        <p><strong>True Label:</strong> ${data.test_results.true_labels[i]}</p>
+                        <p><strong>Model 1 Prediction:</strong> ${data.test_results.model1_preds[i]}</p>
+                        <p><strong>Model 2 Prediction:</strong> ${data.test_results.model2_preds[i]}</p>
+                    `;
+                    resultsDiv.appendChild(resultItem);
+                }
+                
+                document.getElementById('test-results').style.display = 'block';
+                document.getElementById('train-button').disabled = false;
+            });
+
+            // Collect and send form data
+            const formData = new FormData();
+            document.querySelectorAll('#model1-form input, #model1-form select').forEach(input => {
+                formData.append(input.name, input.value);
+            });
+            document.querySelectorAll('#model2-form input, #model2-form select').forEach(input => {
+                formData.append(input.name, input.value);
+            });
+
+            try {
+                const params = new URLSearchParams(formData);
+                await fetch(`/train?${params.toString()}`);
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('train-button').disabled = false;
+            }
+        }
+
+        // Clean up socket connection when page is unloaded
+        window.onbeforeunload = function() {
+            if (socket) {
+                socket.disconnect();
+            }
+        };
+    </script>
+</body>
+</html> 

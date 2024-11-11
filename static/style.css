@@ -1,0 +1,249 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f5f5;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: white;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    border-radius: 10px;
+    margin-top: 20px;
+}
+
+h1 {
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 30px;
+}
+
+.models-config {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 30px;
+    gap: 20px;
+}
+
+.model-config {
+    width: 48%;
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.model-config h2 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    font-size: 1.5em;
+}
+
+.form-group {
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+}
+
+.form-group label {
+    display: inline-block;
+    width: 120px;
+    color: #34495e;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+button {
+    display: block;
+    width: 200px;
+    margin: 20px auto;
+    padding: 12px 20px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: #2980b9;
+}
+
+button:disabled {
+    background-color: #bdc3c7;
+    cursor: not-allowed;
+}
+
+.progress-container {
+    margin: 30px 0;
+}
+
+.progress-section {
+    margin-bottom: 20px;
+}
+
+.progress-section h3 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+}
+
+.progress {
+    width: 100%;
+    height: 25px;
+    background-color: #ecf0f1;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(45deg, #3498db, #2980b9);
+    text-align: center;
+    line-height: 25px;
+    color: white;
+    font-weight: 500;
+    transition: width 0.5s ease-in-out;
+}
+
+.plots-container {
+    display: flex;
+    justify-content: space-between;
+    margin: 30px 0;
+    gap: 20px;
+}
+
+.plot {
+    width: 48%;
+    background-color: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    height: 450px;
+    position: relative;
+    overflow: visible;
+}
+
+.plot h3 {
+    color: #2c3e50;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.plot img {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.test-results {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+.test-results h2 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+}
+
+.results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.result-item {
+    background-color: white;
+    padding: 15px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.result-item p {
+    margin: 5px 0;
+    color: #34495e;
+}
+
+.training-status {
+    margin-top: 10px;
+    color: #34495e;
+    font-size: 14px;
+    text-align: center;
+    font-family: monospace;
+    background-color: #f8f9fa;
+    padding: 5px;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+.metrics {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 10px;
+    padding: 8px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 14px;
+    color: #34495e;
+    border: 1px solid #e9ecef;
+}
+
+.metrics span {
+    padding: 4px 8px;
+    border-radius: 3px;
+    background-color: white;
+}
+
+.metrics .loss {
+    color: #e74c3c;
+}
+
+.metrics .accuracy {
+    color: #27ae60;
+}
+
+@media (max-width: 768px) {
+    .models-config {
+        flex-direction: column;
+    }
+    
+    .model-config {
+        width: 100%;
+    }
+    
+    .plots-container {
+        flex-direction: column;
+    }
+    
+    .plot {
+        width: 100%;
+    }
+}
+
+@media (max-width: 1200px) {
+    .plots-container {
+        flex-direction: column;
+    }
+    
+    .plot {
+        width: 100%;
+        margin-bottom: 20px;
+    }
+} 

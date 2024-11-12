@@ -182,11 +182,14 @@ async def train_models(
 @app.get("/get_test_results")
 async def get_test_results():
     try:
-        # Get data loaders
-        _, test_loader = get_data_loaders(batch_size=100)
+        if model1 is None or model2 is None:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Models not trained yet. Please train the models first."}
+            )
         
         # Get random test samples
-        test_images, test_labels = get_random_test_samples(test_loader)
+        test_images, test_labels = get_random_test_samples(test_loader1)
         test_images = test_images.to(device)
         
         # Get predictions from both models

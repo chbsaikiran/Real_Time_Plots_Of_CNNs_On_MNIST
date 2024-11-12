@@ -17,10 +17,16 @@ def get_data_loaders(batch_size):
     train_dataset = datasets.MNIST('./data', train=True, download=True, transform=transform)
     test_dataset = datasets.MNIST('./data', train=False, transform=transform)
     
+    # Split training data into train and validation (80-20 split)
+    train_size = int(0.8 * len(train_dataset))
+    val_size = len(train_dataset) - train_size
+    train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size])
+    
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
     
-    return train_loader, test_loader
+    return train_loader, val_loader, test_loader
 
 async def train_batch(model, data, target, optimizer, criterion, device):
     model.train()
@@ -37,18 +43,43 @@ async def train_batch(model, data, target, optimizer, criterion, device):
     
     return loss.item(), (100. * correct / total)
 
-def create_plot_data(losses, accuracies, model_name, progress, epoch, total_epochs, batch, total_batches, current_loss, current_acc):
+async def evaluate_model(model, val_loader, criterion, device):
+    model.eval()
+    val_loss = 0
+    correct = 0
+    total = 0
+    
+    with torch.no_grad():
+        for data, target in val_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            val_loss += criterion(output, target).item()
+            pred = output.max(1)[1]
+            correct += pred.eq(target).sum().item()
+            total += target.size(0)
+    
+    avg_loss = val_loss / len(val_loader)
+    accuracy = 100. * correct / total
+    return avg_loss, accuracy
+
+def create_plot_data(train_losses, train_accuracies, val_losses, val_accuracies,
+                    model_name, progress, epoch, total_epochs, batch, total_batches,
+                    current_loss, current_acc, current_val_loss, current_val_acc):
     return {
         "model": model_name,
         f"progress{model_name[-1]}": progress,
-        "losses": losses,
-        "accuracies": accuracies,
+        "train_losses": train_losses,
+        "train_accuracies": train_accuracies,
+        "val_losses": val_losses,
+        "val_accuracies": val_accuracies,
         "epoch": epoch,
         "total_epochs": total_epochs,
         "batch": batch,
         "total_batches": total_batches,
         "current_loss": current_loss,
-        "current_acc": current_acc
+        "current_acc": current_acc,
+        "current_val_loss": current_val_loss,
+        "current_val_acc": current_val_acc
     }
 
 def get_random_test_samples(test_loader, num_samples=10):

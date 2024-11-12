@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from models.cnn_models import CNNModel
-from train_utils import get_data_loaders, train_batch, create_plot_data, get_random_test_samples, calculate_confusion_matrix, calculate_metrics
+from train_utils import get_data_loaders, train_batch, create_plot_data, get_random_test_samples, calculate_confusion_matrix, calculate_metrics, evaluate_model
 import json
 import asyncio
 
@@ -24,6 +24,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Declare global variables for models
 model1 = None
 model2 = None
+train_loader1 = None
+val_loader1 = None
+test_loader1 = None
+train_loader2 = None
+val_loader2 = None
+test_loader2 = None
 
 @app.get("/")
 async def home(request: Request):
@@ -52,76 +58,93 @@ async def train_models(
     model2_batch_size: int = Query(...),
     model2_epochs: int = Query(...),
 ):
-    async def train_model(model, optimizer, criterion, train_loader, epochs, model_name):
-        history = {"loss": [], "acc": [], "batch_count": 0}
+    async def train_model(model, optimizer, criterion, train_loader, val_loader, epochs, model_name):
+        history = {
+            "train_loss": [], "train_acc": [], 
+            "val_loss": [], "val_acc": [], 
+            "batch_count": 0
+        }
         total_batches = len(train_loader) * epochs
-        current_loss = 0
-        current_acc = 0
+        running_loss = 0
+        running_acc = 0
+        total_samples = 0
+        
+        # Get initial validation metrics
+        val_loss, val_acc = await evaluate_model(model, val_loader, criterion, device)
+        history["val_loss"].append(val_loss)
+        history["val_acc"].append(val_acc)
         
         for epoch in range(epochs):
-            epoch_loss = 0
-            epoch_acc = 0
-            batch_count = 0
-            
             for batch_idx, (data, target) in enumerate(train_loader):
                 try:
                     loss, acc = await train_batch(model, data, target, optimizer, criterion, device)
-                    epoch_loss += loss
-                    epoch_acc += acc
-                    batch_count += 1
-                    history["batch_count"] += 1
-                    current_loss = epoch_loss / batch_count
-                    current_acc = epoch_acc / batch_count
+                    batch_size = target.size(0)
                     
-                    # Update every 100 batches or at the end of epoch
-                    if batch_idx % 100 == 0 or batch_idx == len(train_loader) - 1:
-                        history["loss"].append(current_loss)
-                        history["acc"].append(current_acc)
+                    # Update running statistics with weighted averages
+                    running_loss = (running_loss * total_samples + loss * batch_size) / (total_samples + batch_size)
+                    running_acc = (running_acc * total_samples + acc * batch_size) / (total_samples + batch_size)
+                    total_samples += batch_size
+                    history["batch_count"] += 1
+                    
+                    # Update training metrics every 10 batches
+                    if batch_idx % 10 == 0:
+                        history["train_loss"].append(running_loss)
+                        history["train_acc"].append(running_acc)
                         progress = min(100, (history["batch_count"] * 100) // total_batches)
                         
                         # Create plot data
                         plot_data = create_plot_data(
-                            history["loss"], 
-                            history["acc"],
+                            history["train_loss"], 
+                            history["train_acc"],
+                            history["val_loss"],
+                            history["val_acc"],
                             model_name, 
                             progress, 
                             epoch + 1, 
                             epochs,
                             batch_idx + 1, 
                             len(train_loader),
-                            current_loss,
-                            current_acc
+                            running_loss,
+                            running_acc,
+                            history["val_loss"][-1],
+                            history["val_acc"][-1]
                         )
                         
                         # Emit plot data through WebSocket
                         await sio.emit('plot_update', plot_data)
-                        
+                    
                     await asyncio.sleep(0.01)
                 except Exception as e:
                     print(f"Error in batch training: {str(e)}")
                     continue
             
-            # Ensure we send an update at the end of each epoch
-            if history["batch_count"] % 100 != 0:
-                history["loss"].append(current_loss)
-                history["acc"].append(current_acc)
-                progress = min(100, (history["batch_count"] * 100) // total_batches)
-                plot_data = create_plot_data(
-                    history["loss"], 
-                    history["acc"],
-                    model_name, 
-                    progress, 
-                    epoch + 1, 
-                    epochs,
-                    len(train_loader), 
-                    len(train_loader),
-                    current_loss,
-                    current_acc
-                )
-                await sio.emit('plot_update', plot_data)
+            # Evaluate on validation set at the end of each epoch
+            val_loss, val_acc = await evaluate_model(model, val_loader, criterion, device)
+            history["val_loss"].append(val_loss)
+            history["val_acc"].append(val_acc)
+            
+            # Send final update for this epoch
+            progress = min(100, (history["batch_count"] * 100) // total_batches)
+            plot_data = create_plot_data(
+                history["train_loss"], 
+                history["train_acc"],
+                history["val_loss"],
+                history["val_acc"],
+                model_name, 
+                progress, 
+                epoch + 1, 
+                epochs,
+                len(train_loader), 
+                len(train_loader),
+                running_loss,
+                running_acc,
+                val_loss,
+                val_acc
+            )
+            await sio.emit('plot_update', plot_data)
 
     async def start_training():
-        global model1, model2
+        global model1, model2, train_loader1, val_loader1, test_loader1, train_loader2, val_loader2, test_loader2
         try:
             # Initialize models
             model1 = CNNModel(model1_conv1, model1_conv2, model1_conv3).to(device)
@@ -133,13 +156,14 @@ async def train_models(
             optimizer2 = (optim.Adam(model2.parameters()) if model2_optimizer == "adam" 
                          else optim.SGD(model2.parameters(), lr=0.01))
             
-            train_loader1, test_loader1 = get_data_loaders(model1_batch_size)
-            train_loader2, test_loader2 = get_data_loaders(model2_batch_size)
+            # Store loaders globally
+            train_loader1, val_loader1, test_loader1 = get_data_loaders(model1_batch_size)
+            train_loader2, val_loader2, test_loader2 = get_data_loaders(model2_batch_size)
 
             # Train both models concurrently
             await asyncio.gather(
-                train_model(model1, optimizer1, criterion, train_loader1, model1_epochs, "model1"),
-                train_model(model2, optimizer2, criterion, train_loader2, model2_epochs, "model2")
+                train_model(model1, optimizer1, criterion, train_loader1, val_loader1, model1_epochs, "model1"),
+                train_model(model2, optimizer2, criterion, train_loader2, val_loader2, model2_epochs, "model2")
             )
 
             # Emit training complete event
@@ -182,31 +206,44 @@ async def get_test_results():
 @app.get("/get_model_metrics")
 async def get_model_metrics(data_type: str = Query(...)):
     try:
-        # Get data loaders
-        train_loader, test_loader = get_data_loaders(batch_size=100)
-        
-        # Choose loader based on data_type
-        loader = train_loader if data_type == 'train' else test_loader
+        if model1 is None or model2 is None:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Models not trained yet. Please train the models first."}
+            )
+
+        # Choose appropriate loader based on data_type
+        if data_type == 'train':
+            loader1, loader2 = train_loader1, train_loader2
+        elif data_type == 'test':
+            loader1, loader2 = test_loader1, test_loader2
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Invalid data_type. Use 'train' or 'test'."}
+            )
         
         # Initialize metrics
-        all_labels = []
-        all_preds1 = []
-        all_preds2 = []
+        all_labels1, all_preds1 = [], []
+        all_labels2, all_preds2 = [], []
         
-        # Get predictions for entire dataset
+        # Get predictions for both models
         with torch.no_grad():
-            for images, labels in loader:
+            for images, labels in loader1:
                 images = images.to(device)
                 pred1 = model1(images).max(1)[1]
-                pred2 = model2(images).max(1)[1]
-                
-                all_labels.extend(labels.tolist())
+                all_labels1.extend(labels.tolist())
                 all_preds1.extend(pred1.tolist())
+            
+            for images, labels in loader2:
+                images = images.to(device)
+                pred2 = model2(images).max(1)[1]
+                all_labels2.extend(labels.tolist())
                 all_preds2.extend(pred2.tolist())
         
         # Calculate confusion matrices
-        conf_matrix1 = calculate_confusion_matrix(all_labels, all_preds1)
-        conf_matrix2 = calculate_confusion_matrix(all_labels, all_preds2)
+        conf_matrix1 = calculate_confusion_matrix(all_labels1, all_preds1)
+        conf_matrix2 = calculate_confusion_matrix(all_labels2, all_preds2)
         
         # Calculate metrics for both models
         metrics1 = calculate_metrics(conf_matrix1)
@@ -226,6 +263,9 @@ async def get_model_metrics(data_type: str = Query(...)):
         }
     except Exception as e:
         print(f"Error getting model metrics: {str(e)}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Error calculating metrics: {str(e)}"}
+        )
 
 app = socket_app

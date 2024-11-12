@@ -86,8 +86,8 @@ async def train_models(
                     total_samples += batch_size
                     history["batch_count"] += 1
                     
-                    # Update training metrics every 50 batches
-                    if batch_idx % 50 == 0:
+                    # Update training metrics every 50 batches or at the last batch
+                    if batch_idx % 50 == 0 or batch_idx == len(train_loader) - 1:
                         history["train_loss"].append(running_loss)
                         history["train_acc"].append(running_acc)
                         progress = min(100, (history["batch_count"] * 100) // total_batches)
@@ -123,7 +123,7 @@ async def train_models(
             history["val_loss"].append(val_loss)
             history["val_acc"].append(val_acc)
             
-            # Send final update for this epoch
+            # Ensure we send a final update for this epoch
             progress = min(100, (history["batch_count"] * 100) // total_batches)
             plot_data = create_plot_data(
                 history["train_loss"], 
@@ -142,6 +142,25 @@ async def train_models(
                 val_acc
             )
             await sio.emit('plot_update', plot_data)
+        
+        # Send final update with 100% progress
+        final_plot_data = create_plot_data(
+            history["train_loss"], 
+            history["train_acc"],
+            history["val_loss"],
+            history["val_acc"],
+            model_name, 
+            100,  # Force 100% progress
+            epochs,
+            epochs,
+            len(train_loader), 
+            len(train_loader),
+            running_loss,
+            running_acc,
+            val_loss,
+            val_acc
+        )
+        await sio.emit('plot_update', final_plot_data)
 
     async def start_training():
         global model1, model2, train_loader1, val_loader1, test_loader1, train_loader2, val_loader2, test_loader2

@@ -142,6 +142,7 @@ async def train_models(
                 train_model(model2, optimizer2, criterion, train_loader2, model2_epochs, "model2")
             )
 
+            # Emit training complete event
             await sio.emit('training_complete', {
                 "status": "complete"
             })

@@ -277,11 +277,29 @@
             document.getElementById('status1').textContent = 'Waiting to start...';
             document.getElementById('status2').textContent = 'Waiting to start...';
             document.getElementById('test-results').style.display = 'none';
+            document.getElementById('model-metrics').style.display = 'none';
+            
+            // Reset metrics display
+            document.querySelector('#metrics1 .loss').textContent = 'Loss: -';
+            document.querySelector('#metrics1 .accuracy').textContent = 'Accuracy: -';
+            document.querySelector('#metrics2 .loss').textContent = 'Loss: -';
+            document.querySelector('#metrics2 .accuracy').textContent = 'Accuracy: -';
+
+            // Reset plot data
+            model1Data.losses = [];
+            model1Data.accuracies = [];
+            model2Data.losses = [];
+            model2Data.accuracies = [];
 
             // Initialize plots
             initPlots();
 
-            // Setup WebSocket connection
+            // Close existing socket connection if any
+            if (socket) {
+                socket.close();
+            }
+
+            // Setup new WebSocket connection
             socket = io();
 
             socket.on('plot_update', function(data) {
@@ -311,10 +329,16 @@
             });
 
             socket.on('training_complete', function(data) {
-                trainedModel1 = data.model1;
-                trainedModel2 = data.model2;
+                // Re-enable all buttons
+                document.getElementById('train-button').disabled = false;
                 document.getElementById('test-button').disabled = false;
-                document.getElementById('metrics-button').disabled = false;
+                document.getElementById('train-metrics-button').disabled = false;
+                document.getElementById('test-metrics-button').disabled = false;
+            });
+
+            socket.on('training_error', function(data) {
+                console.error('Training error:', data.error);
+                alert('Error during training: ' + data.error);
                 document.getElementById('train-button').disabled = false;
             });
 
@@ -329,9 +353,13 @@
 
             try {
                 const params = new URLSearchParams(formData);
-                await fetch(`/train?${params.toString()}`);
+                const response = await fetch(`/train?${params.toString()}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
             } catch (error) {
                 console.error('Error:', error);
+                alert('Error starting training: ' + error.message);
                 document.getElementById('train-button').disabled = false;
             }
         }

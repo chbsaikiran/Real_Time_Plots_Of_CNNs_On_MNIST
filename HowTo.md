@@ -4,7 +4,7 @@ This application allows you to train and compare two CNN models on the MNIST dat
 
 ## Setup Instructions
 
-1. Create a virtual environment: 
+1. Create a virtual environment:
 
 uvicorn main:app --reload
 

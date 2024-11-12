@@ -179,19 +179,22 @@ async def get_test_results():
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/get_model_metrics")
-async def get_model_metrics():
+async def get_model_metrics(data_type: str = Query(...)):
     try:
         # Get data loaders
-        _, test_loader = get_data_loaders(batch_size=100)
+        train_loader, test_loader = get_data_loaders(batch_size=100)
+        
+        # Choose loader based on data_type
+        loader = train_loader if data_type == 'train' else test_loader
         
         # Initialize metrics
         all_labels = []
         all_preds1 = []
         all_preds2 = []
         
-        # Get predictions for entire test set
+        # Get predictions for entire dataset
         with torch.no_grad():
-            for images, labels in test_loader:
+            for images, labels in loader:
                 images = images.to(device)
                 pred1 = model1(images).max(1)[1]
                 pred2 = model2(images).max(1)[1]
@@ -211,11 +214,13 @@ async def get_model_metrics():
         return {
             "model1": {
                 "confusion_matrix": conf_matrix1.tolist(),
-                **metrics1
+                **metrics1,
+                "data_type": data_type
             },
             "model2": {
                 "confusion_matrix": conf_matrix2.tolist(),
-                **metrics2
+                **metrics2,
+                "data_type": data_type
             }
         }
     except Exception as e:

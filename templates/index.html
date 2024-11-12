@@ -116,7 +116,8 @@
         
         <div class="action-buttons">
             <button id="test-button" onclick="showTestResults()">Test Results</button>
-            <button id="metrics-button" onclick="showModelMetrics()">Show Metrics</button>
+            <button id="train-metrics-button" onclick="showModelMetrics('train')">Training Metrics</button>
+            <button id="test-metrics-button" onclick="showModelMetrics('test')">Test Metrics</button>
         </div>
 
         <div id="test-results" class="test-results" style="display: none;">
@@ -125,6 +126,7 @@
         </div>
 
         <div id="model-metrics" class="model-metrics" style="display: none;">
+            <h2>Model Metrics</h2>
             <div class="metrics-container">
                 <div class="model-metric">
                     <h3>Model 1 Confusion Matrix</h3>
@@ -367,95 +369,53 @@
             }
         }
 
-        async function showModelMetrics() {
+        async function showModelMetrics(dataType) {
             try {
-                const response = await fetch('/get_model_metrics');
+                // Disable buttons while loading
+                document.getElementById('train-metrics-button').disabled = true;
+                document.getElementById('test-metrics-button').disabled = true;
+
+                const response = await fetch(`/get_model_metrics?data_type=${dataType}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 const data = await response.json();
                 
+                // Update title based on data type
+                document.querySelector('#model-metrics h2').textContent = 
+                    `Model Metrics (${dataType.charAt(0).toUpperCase() + dataType.slice(1)} Data)`;
+                
                 // Plot confusion matrices
-                plotConfusionMatrix('confusion-matrix1', data.model1.confusion_matrix, 'Model 1');
-                plotConfusionMatrix('confusion-matrix2', data.model2.confusion_matrix, 'Model 2');
+                plotConfusionMatrix('confusion-matrix1', data.model1.confusion_matrix, 
+                    `Model 1 - ${dataType} Confusion Matrix`);
+                plotConfusionMatrix('confusion-matrix2', data.model2.confusion_matrix, 
+                    `Model 2 - ${dataType} Confusion Matrix`);
                 
                 // Display metrics
                 displayMetrics('model1-scores', data.model1);
                 displayMetrics('model2-scores', data.model2);
                 
+                // Show metrics div and hide test results
                 document.getElementById('model-metrics').style.display = 'block';
                 document.getElementById('test-results').style.display = 'none';
+
             } catch (error) {
                 console.error('Error:', error);
+                alert('Error getting metrics. Make sure models are trained first.');
+            } finally {
+                // Re-enable buttons
+                document.getElementById('train-metrics-button').disabled = false;
+                document.getElementById('test-metrics-button').disabled = false;
             }
-        }
-
-        function plotConfusionMatrix(elementId, matrix, title) {
-            const data = [{
-                z: matrix,
-                x: ['Predicted 0', 'Predicted 1', 'Predicted 2', 'Predicted 3', 'Predicted 4',
-                    'Predicted 5', 'Predicted 6', 'Predicted 7', 'Predicted 8', 'Predicted 9'],
-                y: ['Actual 0', 'Actual 1', 'Actual 2', 'Actual 3', 'Actual 4',
-                    'Actual 5', 'Actual 6', 'Actual 7', 'Actual 8', 'Actual 9'],
-                type: 'heatmap',
-                colorscale: 'Viridis',
-                showscale: true,
-                text: matrix.map(row => row.map(String)),  // Convert numbers to strings
-                texttemplate: '%{text}',  // Show the text for each cell
-                textfont: {color: 'white'},  // Make text white for better visibility
-                hoverongaps: false,
-                hovertemplate: 'Actual: %{y}<br>Predicted: %{x}<br>Count: %{z}<extra></extra>'
-            }];
-
-            const layout = {
-                title: title,
-                height: 500,  // Increased height for better readability
-                width: 500,   // Increased width for better readability
-                margin: {
-                    t: 50,    // top margin
-                    l: 100,   // left margin
-                    r: 50,    // right margin
-                    b: 100    // bottom margin
-                },
-                xaxis: {
-                    title: 'Predicted Label',
-                    side: 'bottom',
-                    tickangle: 45  // Angle the labels for better readability
-                },
-                yaxis: {
-                    title: 'Actual Label'
-                },
-                annotations: []
-            };
-
-            // Add text annotations for each cell
-            for (let i = 0; i < matrix.length; i++) {
-                for (let j = 0; j < matrix[i].length; j++) {
-                    const value = matrix[i][j];
-                    const textColor = value > matrix.flat().reduce((a, b) => a + b) / (matrix.length * matrix.length) * 2 
-                        ? 'white' 
-                        : 'black';  // Use white text for darker cells, black for lighter cells
-                    
-                    layout.annotations.push({
-                        x: j,
-                        y: i,
-                        text: value,
-                        font: {
-                            color: textColor,
-                            size: 10
-                        },
-                        showarrow: false,
-                        xref: 'x',
-                        yref: 'y'
-                    });
-                }
-            }
-
-            Plotly.newPlot(elementId, data, layout, {
-                responsive: true,
-                displayModeBar: false  // Hide the modebar for cleaner look
-            });
         }
 
         function displayMetrics(elementId, metrics) {
             const container = document.getElementById(elementId);
+            if (!container) {
+                console.error(`Element with id ${elementId} not found`);
+                return;
+            }
+
             container.innerHTML = `
                 <div class="metric-item">
                     <div class="label">Accuracy</div>
@@ -474,6 +434,82 @@
                     <div class="value">${(metrics.f1_score * 100).toFixed(2)}%</div>
                 </div>
             `;
+        }
+
+        function plotConfusionMatrix(elementId, matrix, title) {
+            if (!matrix || !Array.isArray(matrix)) {
+                console.error('Invalid matrix data:', matrix);
+                return;
+            }
+
+            const data = [{
+                z: matrix,
+                x: ['Predicted 0', 'Predicted 1', 'Predicted 2', 'Predicted 3', 'Predicted 4',
+                    'Predicted 5', 'Predicted 6', 'Predicted 7', 'Predicted 8', 'Predicted 9'],
+                y: ['Actual 0', 'Actual 1', 'Actual 2', 'Actual 3', 'Actual 4',
+                    'Actual 5', 'Actual 6', 'Actual 7', 'Actual 8', 'Actual 9'],
+                type: 'heatmap',
+                colorscale: 'Viridis',
+                showscale: true,
+                text: matrix.map(row => row.map(String)),
+                texttemplate: '%{text}',
+                textfont: {color: 'white'},
+                hoverongaps: false,
+                hovertemplate: 'Actual: %{y}<br>Predicted: %{x}<br>Count: %{z}<extra></extra>'
+            }];
+
+            const layout = {
+                title: title,
+                height: 500,
+                width: 500,
+                margin: {
+                    t: 50,
+                    l: 100,
+                    r: 50,
+                    b: 100
+                },
+                xaxis: {
+                    title: 'Predicted Label',
+                    side: 'bottom',
+                    tickangle: 45
+                },
+                yaxis: {
+                    title: 'Actual Label'
+                },
+                annotations: []
+            };
+
+            // Add text annotations for each cell
+            for (let i = 0; i < matrix.length; i++) {
+                for (let j = 0; j < matrix[i].length; j++) {
+                    const value = matrix[i][j];
+                    const textColor = value > matrix.flat().reduce((a, b) => a + b) / (matrix.length * matrix.length) * 2 
+                        ? 'white' 
+                        : 'black';
+                    
+                    layout.annotations.push({
+                        x: j,
+                        y: i,
+                        text: value,
+                        font: {
+                            color: textColor,
+                            size: 10
+                        },
+                        showarrow: false,
+                        xref: 'x',
+                        yref: 'y'
+                    });
+                }
+            }
+
+            try {
+                Plotly.newPlot(elementId, data, layout, {
+                    responsive: true,
+                    displayModeBar: false
+                });
+            } catch (error) {
+                console.error('Error plotting confusion matrix:', error);
+            }
         }
 
         // Clean up socket connection when page is unloaded

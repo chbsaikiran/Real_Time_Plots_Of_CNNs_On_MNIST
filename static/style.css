@@ -267,6 +267,23 @@ button:disabled {
 .action-buttons button {
     width: auto;
     margin: 0;
+    min-width: 120px;
+}
+
+#train-metrics-button {
+    background-color: #27ae60;
+}
+
+#train-metrics-button:hover {
+    background-color: #219a52;
+}
+
+#test-metrics-button {
+    background-color: #e67e22;
+}
+
+#test-metrics-button:hover {
+    background-color: #d35400;
 }
 
 .model-metrics {

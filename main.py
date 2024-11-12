@@ -86,8 +86,8 @@ async def train_models(
                     total_samples += batch_size
                     history["batch_count"] += 1
                     
-                    # Update training metrics every 10 batches
-                    if batch_idx % 10 == 0:
+                    # Update training metrics every 50 batches
+                    if batch_idx % 50 == 0:
                         history["train_loss"].append(running_loss)
                         history["train_acc"].append(running_acc)
                         progress = min(100, (history["batch_count"] * 100) // total_batches)

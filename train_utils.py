@@ -18,13 +18,19 @@ def get_data_loaders(batch_size):
     test_dataset = datasets.MNIST('./data', train=False, transform=transform)
     
     # Split training data into train and validation (80-20 split)
-    train_size = int(0.6 * len(train_dataset))
+    train_size = int(0.8 * len(train_dataset))
     val_size = len(train_dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size])
     
+    # Use larger batch size for validation to speed up computation
+    val_batch_size = batch_size * 4
+    
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+    # Use a subset of validation data (20% of validation set)
+    val_subset = torch.utils.data.Subset(val_dataset, 
+                                       indices=torch.randperm(len(val_dataset))[:len(val_dataset)//5])
+    val_loader = DataLoader(val_subset, batch_size=val_batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=val_batch_size, shuffle=True)
     
     return train_loader, val_loader, test_loader
 
@@ -49,18 +55,19 @@ async def evaluate_model(model, val_loader, criterion, device):
     correct = 0
     total = 0
     
-    with torch.no_grad():
+    with torch.no_grad():  # This ensures no gradients are computed during validation
         for data, target in val_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            val_loss += criterion(output, target).item()
+            val_loss += criterion(output, target).item() * target.size(0)  # Weight loss by batch size
             pred = output.max(1)[1]
             correct += pred.eq(target).sum().item()
             total += target.size(0)
+            
+            # Free memory
+            del output, pred
     
-    avg_loss = val_loss / len(val_loader)
-    accuracy = 100. * correct / total
-    return avg_loss, accuracy
+    return val_loss / total, 100. * correct / total
 
 def create_plot_data(train_losses, train_accuracies, val_losses, val_accuracies,
                     model_name, progress, epoch, total_epochs, batch, total_batches,

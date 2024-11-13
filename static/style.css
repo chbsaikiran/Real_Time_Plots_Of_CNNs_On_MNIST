@@ -336,4 +336,16 @@ button:disabled {
     margin: 30px 0 20px;
     text-align: center;
     font-size: 1.5em;
+}
+
+.timer {
+    margin-top: 10px;
+    color: #34495e;
+    font-size: 14px;
+    text-align: center;
+    font-family: monospace;
+    background-color: #f8f9fa;
+    padding: 5px;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
 } 

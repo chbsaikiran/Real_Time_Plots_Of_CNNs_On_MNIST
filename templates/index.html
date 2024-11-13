@@ -89,6 +89,7 @@
                     <span class="loss">Loss: -</span>
                     <span class="accuracy">Accuracy: -</span>
                 </div>
+                <div id="timer1" class="timer">Time: 00:00:00</div>
             </div>
             <div class="progress-section">
                 <h3>Model 2 Progress</h3>
@@ -100,6 +101,7 @@
                     <span class="loss">Loss: -</span>
                     <span class="accuracy">Accuracy: -</span>
                 </div>
+                <div id="timer2" class="timer">Time: 00:00:00</div>
             </div>
         </div>
         
@@ -172,6 +174,36 @@
             val_losses: [],
             val_accuracies: []
         };
+
+        let startTime1 = null;
+        let startTime2 = null;
+        let timer1Interval = null;
+        let timer2Interval = null;
+
+        function formatTime(ms) {
+            let seconds = Math.floor(ms / 1000);
+            let minutes = Math.floor(seconds / 60);
+            let hours = Math.floor(minutes / 60);
+            
+            seconds = seconds % 60;
+            minutes = minutes % 60;
+            
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function updateTimer1() {
+            if (startTime1) {
+                const elapsed = Date.now() - startTime1;
+                document.getElementById('timer1').textContent = `Time: ${formatTime(elapsed)}`;
+            }
+        }
+
+        function updateTimer2() {
+            if (startTime2) {
+                const elapsed = Date.now() - startTime2;
+                document.getElementById('timer2').textContent = `Time: ${formatTime(elapsed)}`;
+            }
+        }
 
         function initPlots() {
             const commonTrace1 = {
@@ -320,6 +352,14 @@
             // Setup new WebSocket connection
             socket = io();
 
+            // Reset timers
+            startTime1 = null;
+            startTime2 = null;
+            if (timer1Interval) clearInterval(timer1Interval);
+            if (timer2Interval) clearInterval(timer2Interval);
+            document.getElementById('timer1').textContent = 'Time: 00:00:00';
+            document.getElementById('timer2').textContent = 'Time: 00:00:00';
+
             socket.on('plot_update', function(data) {
                 // Update progress bars and status
                 if (data.model === "model1") {
@@ -331,6 +371,11 @@
                         `Loss: ${data.current_loss.toFixed(4)}`;
                     document.querySelector('#metrics1 .accuracy').textContent = 
                         `Accuracy: ${data.current_acc.toFixed(2)}%`;
+                    // Start timer for model 1 if not started
+                    if (!startTime1) {
+                        startTime1 = Date.now();
+                        timer1Interval = setInterval(updateTimer1, 1000);
+                    }
                 } else {
                     document.getElementById('progress2').style.width = `${data.progress2}%`;
                     document.getElementById('progress2').textContent = `${data.progress2}%`;
@@ -340,6 +385,11 @@
                         `Loss: ${data.current_loss.toFixed(4)}`;
                     document.querySelector('#metrics2 .accuracy').textContent = 
                         `Accuracy: ${data.current_acc.toFixed(2)}%`;
+                    // Start timer for model 2 if not started
+                    if (!startTime2) {
+                        startTime2 = Date.now();
+                        timer2Interval = setInterval(updateTimer2, 1000);
+                    }
                 }
 
                 // Update plots
@@ -347,11 +397,26 @@
             });
 
             socket.on('training_complete', function(data) {
-                // Re-enable all buttons
-                document.getElementById('train-button').disabled = false;
-                document.getElementById('test-button').disabled = false;
-                document.getElementById('train-metrics-button').disabled = false;
-                document.getElementById('test-metrics-button').disabled = false;
+                // Stop timer for the completed model
+                if (data.model === "model1") {
+                    if (timer1Interval) {
+                        clearInterval(timer1Interval);
+                        timer1Interval = null;
+                    }
+                } else if (data.model === "model2") {
+                    if (timer2Interval) {
+                        clearInterval(timer2Interval);
+                        timer2Interval = null;
+                    }
+                }
+
+                // Only re-enable buttons when both models are complete
+                if (data.status === "all_complete") {
+                    document.getElementById('train-button').disabled = false;
+                    document.getElementById('test-button').disabled = false;
+                    document.getElementById('train-metrics-button').disabled = false;
+                    document.getElementById('test-metrics-button').disabled = false;
+                }
             });
 
             socket.on('training_error', function(data) {

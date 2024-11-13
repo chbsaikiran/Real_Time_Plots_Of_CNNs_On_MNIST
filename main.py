@@ -203,7 +203,10 @@ async def train_models(
                     })
 
                 # Signal completion
-                queue.put({"model": f"model{model_num}", "status": "complete"})
+                queue.put({
+                    "model": f"model{model_num}", 
+                    "status": "complete"
+                })
                 
             except Exception as e:
                 queue.put({"model": f"model{model_num}", "error": str(e)})
@@ -221,8 +224,10 @@ async def train_models(
                             return
                         elif "status" in data and data["status"] == "complete":
                             completed_models += 1
+                            await sio.emit('training_complete', data)  # Send model-specific completion
                             if completed_models == 2:
-                                await sio.emit('training_complete', {"status": "complete"})
+                                # Send final completion when both models are done
+                                await sio.emit('training_complete', {"status": "all_complete"})
                         else:
                             await sio.emit('plot_update', data)
                     except:

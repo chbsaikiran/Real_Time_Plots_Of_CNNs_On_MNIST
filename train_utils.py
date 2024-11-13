@@ -14,28 +14,38 @@ def get_data_loaders(batch_size):
         transforms.Normalize((0.1307,), (0.3081,))
     ])
     
+    # Optimize data loading
+    kwargs = {
+        'num_workers': 2,
+        'pin_memory': False,
+        'persistent_workers': True,
+        'prefetch_factor': 2,
+        'drop_last': True
+    }
+    
     train_dataset = datasets.MNIST('./data', train=True, download=True, transform=transform)
     test_dataset = datasets.MNIST('./data', train=False, transform=transform)
     
-    # Split training data into train and validation (80-20 split)
-    train_size = int(0.8 * len(train_dataset))
+    # Split training data into train and validation (95-5 split)
+    train_size = int(0.95 * len(train_dataset))
     val_size = len(train_dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size])
     
-    # Use larger batch size for validation to speed up computation
-    val_batch_size = batch_size * 4
+    # Use larger batch sizes for validation
+    val_batch_size = min(batch_size * 8, 1024)  # Cap the maximum batch size
     
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    # Use a subset of validation data (20% of validation set)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, **kwargs)
+    
+    # Ensure validation set has at least one batch
+    min_val_samples = max(val_batch_size, len(val_dataset) // 10)  # At least one batch or 10% of validation data
     val_subset = torch.utils.data.Subset(val_dataset, 
-                                       indices=torch.randperm(len(val_dataset))[:len(val_dataset)//5])
-    val_loader = DataLoader(val_subset, batch_size=val_batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=val_batch_size, shuffle=True)
+                                       indices=torch.randperm(len(val_dataset))[:min_val_samples])
+    val_loader = DataLoader(val_subset, batch_size=val_batch_size, shuffle=False, **kwargs)
+    test_loader = DataLoader(test_dataset, batch_size=val_batch_size, shuffle=True, **kwargs)
     
     return train_loader, val_loader, test_loader
 
 async def train_batch(model, data, target, optimizer, criterion, device):
-    model.train()
     data, target = data.to(device), target.to(device)
     optimizer.zero_grad()
     output = model(data)
@@ -43,9 +53,10 @@ async def train_batch(model, data, target, optimizer, criterion, device):
     loss.backward()
     optimizer.step()
     
-    _, predicted = output.max(1)
-    total = target.size(0)
-    correct = predicted.eq(target).sum().item()
+    with torch.no_grad():  # Add no_grad for efficiency
+        _, predicted = output.max(1)
+        total = target.size(0)
+        correct = predicted.eq(target).sum().item()
     
     return loss.item(), (100. * correct / total)
 
@@ -55,19 +66,25 @@ async def evaluate_model(model, val_loader, criterion, device):
     correct = 0
     total = 0
     
-    with torch.no_grad():  # This ensures no gradients are computed during validation
-        for data, target in val_loader:
-            data, target = data.to(device), target.to(device)
-            output = model(data)
-            val_loss += criterion(output, target).item() * target.size(0)  # Weight loss by batch size
-            pred = output.max(1)[1]
-            correct += pred.eq(target).sum().item()
-            total += target.size(0)
+    try:
+        with torch.no_grad():
+            for data, target in val_loader:
+                data, target = data.to(device), target.to(device)
+                output = model(data)
+                val_loss += criterion(output, target).item() * target.size(0)
+                pred = output.max(1)[1]
+                correct += pred.eq(target).sum().item()
+                total += target.size(0)
+                
+                del output, pred
+        
+        if total == 0:  # Add safety check
+            return 0.0, 0.0
             
-            # Free memory
-            del output, pred
-    
-    return val_loss / total, 100. * correct / total
+        return val_loss / total, 100. * correct / total
+    except Exception as e:
+        print(f"Error in evaluate_model: {str(e)}")
+        return 0.0, 0.0  # Return default values in case of error
 
 def create_plot_data(train_losses, train_accuracies, val_losses, val_accuracies,
                     model_name, progress, epoch, total_epochs, batch, total_batches,

@@ -242,13 +242,13 @@
             // Training Loss Plot
             Plotly.newPlot('train-loss-plot', 
                 [{...commonTrace1}, {...commonTrace2}], 
-                {...commonLayout, title: 'Training Loss', xaxis: {title: 'Batch (x50)'}, yaxis: {title: 'Loss'}}
+                {...commonLayout, title: 'Training Loss', xaxis: {title: 'Batch (x250)'}, yaxis: {title: 'Loss'}}
             );
 
             // Training Accuracy Plot
             Plotly.newPlot('train-acc-plot', 
                 [{...commonTrace1}, {...commonTrace2}], 
-                {...commonLayout, title: 'Training Accuracy', xaxis: {title: 'Batch (x50)'}, yaxis: {title: 'Accuracy (%)'}}
+                {...commonLayout, title: 'Training Accuracy', xaxis: {title: 'Batch (x250)'}, yaxis: {title: 'Accuracy (%)'}}
             );
 
             // Validation Loss Plot

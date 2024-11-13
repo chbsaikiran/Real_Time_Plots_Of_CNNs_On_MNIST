@@ -143,7 +143,7 @@ async def train_models(
                         total_samples += batch_size
                         history["batch_count"] += 1
                         
-                        if batch_idx % 50 == 0 or batch_idx == len(train_loader) - 1:
+                        if batch_idx % 250 == 0 or batch_idx == len(train_loader) - 1:
                             history["train_loss"].append(running_loss)
                             history["train_acc"].append(running_acc)
                             progress = min(100, (history["batch_count"] * 100) // total_batches)

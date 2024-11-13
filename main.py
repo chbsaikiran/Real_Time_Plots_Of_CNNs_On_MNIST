@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from models.cnn_models import CNNModel
-from train_utils import get_data_loaders, train_batch, create_plot_data, get_random_test_samples, calculate_confusion_matrix, calculate_metrics, evaluate_model
+from train_utils import get_data_loaders, train_batch, create_plot_data, get_random_test_samples, calculate_confusion_matrix, calculate_metrics, evaluate_model, get_model_summary
 import json
 import asyncio
 import threading
@@ -91,6 +91,22 @@ async def train_models(
                 
                 # Get data loaders
                 train_loader, val_loader, _ = get_data_loaders(batch_size)
+                
+                # Get and send model summary before training starts
+                model_summary = get_model_summary(model)
+                queue.put({
+                    "model": f"model{model_num}",
+                    "type": "model_summary",
+                    "summary": model_summary,
+                    "config": {
+                        "conv1": conv1,
+                        "conv2": conv2,
+                        "conv3": conv3,
+                        "optimizer": opt_type,
+                        "batch_size": batch_size,
+                        "epochs": epochs
+                    }
+                })
                 
                 # Training loop
                 total_batches = len(train_loader) * epochs

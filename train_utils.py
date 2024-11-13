@@ -154,3 +154,43 @@ def calculate_metrics(confusion_matrix):
         "recall": np.mean(recalls),
         "f1_score": np.mean(f1_scores)
     }
+
+def get_model_summary(model):
+    """Get model details including layers, parameters, and total trainable parameters"""
+    summary = []
+    total_params = 0
+    trainable_params = 0
+    
+    # Get layer details
+    for name, layer in model.named_children():
+        if isinstance(layer, nn.Sequential):
+            for sublayer_name, sublayer in layer.named_children():
+                params = sum(p.numel() for p in sublayer.parameters())
+                trainable = sum(p.numel() for p in sublayer.parameters() if p.requires_grad)
+                summary.append({
+                    'layer': f"{name}.{sublayer_name}",
+                    'type': sublayer.__class__.__name__,
+                    'params': params,
+                    'trainable_params': trainable,
+                    'shape': tuple(sublayer.weight.shape) if hasattr(sublayer, 'weight') else None
+                })
+                total_params += params
+                trainable_params += trainable
+        else:
+            params = sum(p.numel() for p in layer.parameters())
+            trainable = sum(p.numel() for p in layer.parameters() if p.requires_grad)
+            summary.append({
+                'layer': name,
+                'type': layer.__class__.__name__,
+                'params': params,
+                'trainable_params': trainable,
+                'shape': tuple(layer.weight.shape) if hasattr(layer, 'weight') else None
+            })
+            total_params += params
+            trainable_params += trainable
+    
+    return {
+        'layers': summary,
+        'total_params': total_params,
+        'trainable_params': trainable_params
+    }

@@ -361,6 +361,10 @@
             document.getElementById('timer2').textContent = 'Time: 00:00:00';
 
             socket.on('plot_update', function(data) {
+                if (data.type === "model_summary") {
+                    displayModelSummary(data.summary, data.model === "model1" ? 1 : 2, data.config);
+                    return;
+                }
                 // Update progress bars and status
                 if (data.model === "model1") {
                     document.getElementById('progress1').style.width = `${data.progress1}%`;
@@ -621,6 +625,64 @@
             } catch (error) {
                 console.error('Error plotting confusion matrix:', error);
             }
+        }
+
+        // Add this function to format the model summary
+        function displayModelSummary(summary, modelNum, config) {
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'model-summary';
+            
+            // Add model configuration
+            let summaryHTML = `
+                <h4>Model ${modelNum} Configuration:</h4>
+                <div class="config-details">
+                    <p>Conv1 Layers: ${config.conv1}</p>
+                    <p>Conv2 Layers: ${config.conv2}</p>
+                    <p>Conv3 Layers: ${config.conv3}</p>
+                    <p>Optimizer: ${config.optimizer}</p>
+                    <p>Batch Size: ${config.batch_size}</p>
+                    <p>Epochs: ${config.epochs}</p>
+                </div>
+                <h4>Layer Details:</h4>
+                <table class="layer-table">
+                    <thead>
+                        <tr>
+                            <th>Layer</th>
+                            <th>Type</th>
+                            <th>Shape</th>
+                            <th>Parameters</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            // Add layer details
+            summary.layers.forEach(layer => {
+                summaryHTML += `
+                    <tr>
+                        <td>${layer.layer}</td>
+                        <td>${layer.type}</td>
+                        <td>${layer.shape ? layer.shape.join(' × ') : '-'}</td>
+                        <td>${layer.params.toLocaleString()}</td>
+                    </tr>
+                `;
+            });
+            
+            // Add total parameters
+            summaryHTML += `
+                    </tbody>
+                </table>
+                <div class="total-params">
+                    <p>Total Parameters: ${summary.total_params.toLocaleString()}</p>
+                    <p>Trainable Parameters: ${summary.trainable_params.toLocaleString()}</p>
+                </div>
+            `;
+            
+            summaryDiv.innerHTML = summaryHTML;
+            
+            // Insert the summary before the progress section
+            const progressSection = document.querySelector(`.progress-section:nth-child(${modelNum})`);
+            progressSection.insertBefore(summaryDiv, progressSection.firstChild);
         }
 
         // Clean up socket connection when page is unloaded

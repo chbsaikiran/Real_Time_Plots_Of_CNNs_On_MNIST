@@ -40,7 +40,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Epochs:</label>
-                                <input type="number" name="model1_epochs" value="10" min="1">
+                                <input type="number" name="model1_epochs" value="5" min="1">
                             </div>
                         </form>
                     </div>
@@ -73,7 +73,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Epochs:</label>
-                                <input type="number" name="model2_epochs" value="10" min="1">
+                                <input type="number" name="model2_epochs" value="5" min="1">
                             </div>
                         </form>
                     </div>
@@ -600,13 +600,20 @@
                     const resultItem = document.createElement('div');
                     resultItem.className = `result-item ${isModel1Correct && isModel2Correct ? 'correct' : 'incorrect'}`;
                     resultItem.innerHTML = `
-                        <p><strong>True Label:</strong> ${data.true_labels[i]}</p>
-                        <p style="color: ${isModel1Correct ? '#2ecc71' : '#e74c3c'}">
-                            <strong>Model 1 Prediction:</strong> ${data.model1_preds[i]}
-                        </p>
-                        <p style="color: ${isModel2Correct ? '#2ecc71' : '#e74c3c'}">
-                            <strong>Model 2 Prediction:</strong> ${data.model2_preds[i]}
-                        </p>
+                        <div class="result-content">
+                            <div class="digit-image">
+                                <img src="data:image/png;base64,${data.images[i]}" alt="MNIST digit">
+                            </div>
+                            <div class="predictions">
+                                <p class="true-label"><strong>True Label:</strong> ${data.true_labels[i]}</p>
+                                <p class="model-pred" style="color: ${isModel1Correct ? '#2ecc71' : '#e74c3c'}">
+                                    <strong>Model 1 Prediction:</strong> ${data.model1_preds[i]}
+                                </p>
+                                <p class="model-pred" style="color: ${isModel2Correct ? '#2ecc71' : '#e74c3c'}">
+                                    <strong>Model 2 Prediction:</strong> ${data.model2_preds[i]}
+                                </p>
+                            </div>
+                        </div>
                     `;
                     resultsDiv.appendChild(resultItem);
                 }

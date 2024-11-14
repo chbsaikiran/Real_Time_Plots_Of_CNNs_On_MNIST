@@ -13,6 +13,9 @@ import asyncio
 import threading
 from queue import Queue
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+import numpy as np
+import io
+import base64
 
 # Create FastAPI and SocketIO apps
 app = FastAPI()
@@ -314,24 +317,47 @@ async def get_test_results():
                 content={"error": "Models not trained yet. Please train the models first."}
             )
         
-        # Get random test samples
-        test_images, test_labels = get_random_test_samples(test_loader1)
-        test_images = test_images.to(device)
+        # Get random test samples with original images
+        try:
+            test_images, test_labels, original_images = get_random_test_samples(test_loader1, return_original=True)
+        except Exception as e:
+            print(f"Error getting test samples: {str(e)}")
+            raise
         
-        # Get predictions from both models
-        with torch.no_grad():
-            model1.eval()  # Add model.eval()
-            model2.eval()  # Add model.eval()
-            pred1 = model1(test_images).max(1)[1]
-            pred2 = model2(test_images).max(1)[1]
+        # Convert original images to displayable format
+        images_data = []
+        try:
+            for img in original_images:
+                # Convert to bytes (original images are already in 0-255 range)
+                img_bytes = io.BytesIO()
+                import PIL.Image
+                PIL.Image.fromarray(img).save(img_bytes, format='PNG')
+                img_base64 = base64.b64encode(img_bytes.getvalue()).decode('utf-8')
+                images_data.append(img_base64)
+        except Exception as e:
+            print(f"Error converting images: {str(e)}")
+            raise
+        
+        # Get predictions using transformed images
+        try:
+            test_images = test_images.to(device)
+            with torch.no_grad():
+                model1.eval()
+                model2.eval()
+                pred1 = model1(test_images).max(1)[1]
+                pred2 = model2(test_images).max(1)[1]
+        except Exception as e:
+            print(f"Error making predictions: {str(e)}")
+            raise
         
         return {
+            "images": images_data,
             "true_labels": test_labels.tolist(),
             "model1_preds": pred1.tolist(),
             "model2_preds": pred2.tolist()
         }
     except Exception as e:
-        print(f"Error getting test results: {str(e)}")
+        print(f"Error in get_test_results: {str(e)}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/get_model_metrics")

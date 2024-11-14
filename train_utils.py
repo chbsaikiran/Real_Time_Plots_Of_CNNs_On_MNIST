@@ -106,10 +106,24 @@ def create_plot_data(train_losses, train_accuracies, val_losses, val_accuracies,
         "current_val_acc": current_val_acc
     }
 
-def get_random_test_samples(test_loader, num_samples=10):
+def get_random_test_samples(test_loader, num_samples=10, return_original=False):
     data_iter = iter(test_loader)
     images, labels = next(data_iter)
     indices = torch.randperm(len(images))[:num_samples]
+    
+    if return_original:
+        # Get original images before normalization
+        original_images = []
+        for idx in indices:
+            # Get original image directly from the MNIST dataset
+            original_idx = test_loader.dataset.indices[idx] if hasattr(test_loader.dataset, 'indices') else idx
+            original_img = test_loader.dataset.data[original_idx]
+            # Convert to numpy array (it's already in 0-255 range)
+            img_np = original_img.numpy() if isinstance(original_img, torch.Tensor) else original_img
+            original_images.append(img_np)
+        
+        return images[indices], labels[indices], original_images
+    
     return images[indices], labels[indices]
 
 def calculate_confusion_matrix(true_labels, pred_labels):

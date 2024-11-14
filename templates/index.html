@@ -91,6 +91,7 @@
                         <div id="metrics1" class="metrics">
                             <span class="loss">Loss: -</span>
                             <span class="accuracy">Accuracy: -</span>
+                            <span class="learning-rate">LR: -</span>
                         </div>
                         <div id="timer1" class="timer">Time: 00:00:00</div>
                     </div>
@@ -103,6 +104,7 @@
                         <div id="metrics2" class="metrics">
                             <span class="loss">Loss: -</span>
                             <span class="accuracy">Accuracy: -</span>
+                            <span class="learning-rate">LR: -</span>
                         </div>
                         <div id="timer2" class="timer">Time: 00:00:00</div>
                     </div>
@@ -503,6 +505,8 @@
                         `Loss: ${data.current_loss.toFixed(4)}`;
                     document.querySelector('#metrics1 .accuracy').textContent = 
                         `Accuracy: ${data.current_acc.toFixed(2)}%`;
+                    document.querySelector('#metrics1 .learning-rate').textContent = 
+                        `LR: ${data.current_lr.toExponential(2)}`;
                     // Start timer for model 1 if not started
                     if (!startTime1) {
                         startTime1 = Date.now();
@@ -517,6 +521,8 @@
                         `Loss: ${data.current_loss.toFixed(4)}`;
                     document.querySelector('#metrics2 .accuracy').textContent = 
                         `Accuracy: ${data.current_acc.toFixed(2)}%`;
+                    document.querySelector('#metrics2 .learning-rate').textContent = 
+                        `LR: ${data.current_lr.toExponential(2)}`;
                     // Start timer for model 2 if not started
                     if (!startTime2) {
                         startTime2 = Date.now();

@@ -34,6 +34,185 @@ train_loader2 = None
 val_loader2 = None
 test_loader2 = None
 
+# Move ModelTrainer class outside the endpoint
+class ModelTrainer:
+    def __init__(self, device):
+        self.device = device
+        self.completed_models = 0
+
+    def train_model_thread(self, model_params, queue):
+        try:
+            # Unpack parameters
+            conv1, conv2, conv3, opt_type, batch_size, epochs, model_num = model_params
+            
+            # Initialize model and store globally
+            if model_num == 1:
+                global model1, train_loader1, val_loader1, test_loader1
+                model1 = CNNModel(conv1, conv2, conv3).to(self.device)
+                model = model1
+                train_loader, val_loader, test_loader = get_data_loaders(batch_size)
+                train_loader1, val_loader1, test_loader1 = train_loader, val_loader, test_loader
+            else:
+                global model2, train_loader2, val_loader2, test_loader2
+                model2 = CNNModel(conv1, conv2, conv3).to(self.device)
+                model = model2
+                train_loader, val_loader, test_loader = get_data_loaders(batch_size)
+                train_loader2, val_loader2, test_loader2 = train_loader, val_loader, test_loader
+
+            criterion = nn.CrossEntropyLoss()
+            optimizer = (optim.Adam(model.parameters()) if opt_type == "adam" 
+                       else optim.SGD(model.parameters(), lr=0.01))
+            
+            # Add learning rate scheduler
+            scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2)
+            
+            # Get and send model summary before training starts
+            model_summary = get_model_summary(model)
+            queue.put({
+                "model": f"model{model_num}",
+                "type": "model_summary",
+                "summary": model_summary,
+                "config": {
+                    "conv1": conv1,
+                    "conv2": conv2,
+                    "conv3": conv3,
+                    "optimizer": opt_type,
+                    "batch_size": batch_size,
+                    "epochs": epochs,
+                    "initial_lr": optimizer.param_groups[0]['lr']
+                }
+            })
+            
+            # Initialize training variables
+            total_batches = len(train_loader) * epochs
+            running_loss = 0
+            running_acc = 0
+            total_samples = 0
+            history = {
+                "train_loss": [], 
+                "train_acc": [],
+                "val_loss": [], 
+                "val_acc": [],
+                "batch_count": 0,
+                "learning_rates": []
+            }
+            
+            # Initial validation
+            model.eval()
+            val_loss = 0
+            correct = 0
+            total = 0
+            with torch.no_grad():
+                for data, target in val_loader:
+                    data, target = data.to(self.device), target.to(self.device)
+                    output = model(data)
+                    val_loss += criterion(output, target).item()
+                    pred = output.max(1)[1]
+                    correct += pred.eq(target).sum().item()
+                    total += target.size(0)
+            
+            val_loss /= len(val_loader)
+            val_acc = 100. * correct / total
+            history["val_loss"].append(val_loss)
+            history["val_acc"].append(val_acc)
+            history["learning_rates"].append(optimizer.param_groups[0]['lr'])
+            
+            # Training loop
+            for epoch in range(epochs):
+                model.train()
+                for batch_idx, (data, target) in enumerate(train_loader):
+                    data, target = data.to(self.device), target.to(self.device)
+                    optimizer.zero_grad()
+                    output = model(data)
+                    loss = criterion(output, target)
+                    loss.backward()
+                    optimizer.step()
+                    
+                    # Calculate accuracy
+                    pred = output.max(1)[1]
+                    acc = 100. * pred.eq(target).sum().item() / len(target)
+                    
+                    batch_size = target.size(0)
+                    running_loss = (running_loss * total_samples + loss.item() * batch_size) / (total_samples + batch_size)
+                    running_acc = (running_acc * total_samples + acc * batch_size) / (total_samples + batch_size)
+                    total_samples += batch_size
+                    history["batch_count"] += 1
+                    
+                    if batch_idx % 250 == 0 or batch_idx == len(train_loader) - 1:
+                        history["train_loss"].append(running_loss)
+                        history["train_acc"].append(running_acc)
+                        progress = min(100, (history["batch_count"] * 100) // total_batches)
+                        
+                        queue.put({
+                            "model": f"model{model_num}",
+                            f"progress{model_num}": progress,
+                            "train_losses": history["train_loss"],
+                            "train_accuracies": history["train_acc"],
+                            "val_losses": history["val_loss"],
+                            "val_accuracies": history["val_acc"],
+                            "epoch": epoch + 1,
+                            "total_epochs": epochs,
+                            "batch": batch_idx + 1,
+                            "total_batches": len(train_loader),
+                            "current_loss": running_loss,
+                            "current_acc": running_acc,
+                            "current_val_loss": history["val_loss"][-1],
+                            "current_val_acc": history["val_acc"][-1],
+                            "current_lr": optimizer.param_groups[0]['lr']
+                        })
+                
+                # Validation at end of epoch
+                model.eval()
+                val_loss = 0
+                correct = 0
+                total = 0
+                with torch.no_grad():
+                    for data, target in val_loader:
+                        data, target = data.to(self.device), target.to(self.device)
+                        output = model(data)
+                        val_loss += criterion(output, target).item()
+                        pred = output.max(1)[1]
+                        correct += pred.eq(target).sum().item()
+                        total += target.size(0)
+                
+                val_loss /= len(val_loader)
+                val_acc = 100. * correct / total
+                history["val_loss"].append(val_loss)
+                history["val_acc"].append(val_acc)
+                
+                # Update learning rate
+                scheduler.step(val_loss)
+                current_lr = optimizer.param_groups[0]['lr']
+                history["learning_rates"].append(current_lr)
+
+                # Send final update for this epoch
+                queue.put({
+                    "model": f"model{model_num}",
+                    f"progress{model_num}": min(100, ((epoch + 1) * 100) // epochs),
+                    "train_losses": history["train_loss"],
+                    "train_accuracies": history["train_acc"],
+                    "val_losses": history["val_loss"],
+                    "val_accuracies": history["val_acc"],
+                    "epoch": epoch + 1,
+                    "total_epochs": epochs,
+                    "batch": len(train_loader),
+                    "total_batches": len(train_loader),
+                    "current_loss": running_loss,
+                    "current_acc": running_acc,
+                    "current_val_loss": val_loss,
+                    "current_val_acc": val_acc,
+                    "current_lr": current_lr
+                })
+
+            # Signal completion
+            queue.put({
+                "model": f"model{model_num}", 
+                "status": "complete"
+            })
+            
+        except Exception as e:
+            queue.put({"model": f"model{model_num}", "error": str(e)})
+
 @app.get("/")
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -61,176 +240,6 @@ async def train_models(
     model2_batch_size: int = Query(...),
     model2_epochs: int = Query(...),
 ):
-    class ModelTrainer:
-        def __init__(self):
-            self.device = device
-            self.completed_models = 0
-            global model1, model2  # Add this to store models globally
-
-        def train_model_thread(self, model_params, queue):
-            try:
-                # Unpack parameters
-                conv1, conv2, conv3, opt_type, batch_size, epochs, model_num = model_params
-                
-                # Initialize model and store globally
-                if model_num == 1:
-                    global model1, train_loader1, val_loader1, test_loader1
-                    model1 = CNNModel(conv1, conv2, conv3).to(self.device)
-                    model = model1
-                    train_loader, val_loader, test_loader = get_data_loaders(batch_size)
-                    train_loader1, val_loader1, test_loader1 = train_loader, val_loader, test_loader
-                else:
-                    global model2, train_loader2, val_loader2, test_loader2
-                    model2 = CNNModel(conv1, conv2, conv3).to(self.device)
-                    model = model2
-                    train_loader, val_loader, test_loader = get_data_loaders(batch_size)
-                    train_loader2, val_loader2, test_loader2 = train_loader, val_loader, test_loader
-
-                criterion = nn.CrossEntropyLoss()
-                optimizer = (optim.Adam(model.parameters()) if opt_type == "adam" 
-                           else optim.SGD(model.parameters(), lr=0.01))
-                
-                # Get data loaders
-                train_loader, val_loader, _ = get_data_loaders(batch_size)
-                
-                # Get and send model summary before training starts
-                model_summary = get_model_summary(model)
-                queue.put({
-                    "model": f"model{model_num}",
-                    "type": "model_summary",
-                    "summary": model_summary,
-                    "config": {
-                        "conv1": conv1,
-                        "conv2": conv2,
-                        "conv3": conv3,
-                        "optimizer": opt_type,
-                        "batch_size": batch_size,
-                        "epochs": epochs
-                    }
-                })
-                
-                # Add learning rate scheduler
-                scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2, verbose=True)
-                
-                # Training loop
-                total_batches = len(train_loader) * epochs
-                running_loss = 0
-                running_acc = 0
-                total_samples = 0
-                history = {
-                    "train_loss": [], "train_acc": [],
-                    "val_loss": [], "val_acc": [],
-                    "batch_count": 0
-                }
-                
-                # Initial validation
-                model.eval()
-                val_loss = 0
-                correct = 0
-                total = 0
-                with torch.no_grad():
-                    for data, target in val_loader:
-                        data, target = data.to(self.device), target.to(self.device)
-                        output = model(data)
-                        val_loss += criterion(output, target).item()
-                        pred = output.max(1)[1]
-                        correct += pred.eq(target).sum().item()
-                        total += target.size(0)
-                
-                val_loss /= len(val_loader)
-                val_acc = 100. * correct / total  # Fixed validation accuracy calculation
-                history["val_loss"].append(val_loss)
-                history["val_acc"].append(val_acc)
-                
-                # Training loop
-                for epoch in range(epochs):
-                    model.train()
-                    for batch_idx, (data, target) in enumerate(train_loader):
-                        data, target = data.to(self.device), target.to(self.device)
-                        optimizer.zero_grad()
-                        output = model(data)
-                        loss = criterion(output, target)
-                        loss.backward()
-                        optimizer.step()
-                        
-                        # Calculate accuracy
-                        pred = output.max(1)[1]
-                        acc = 100. * pred.eq(target).sum().item() / len(target)
-                        
-                        batch_size = target.size(0)
-                        running_loss = (running_loss * total_samples + loss.item() * batch_size) / (total_samples + batch_size)
-                        running_acc = (running_acc * total_samples + acc * batch_size) / (total_samples + batch_size)
-                        total_samples += batch_size
-                        history["batch_count"] += 1
-                        
-                        if batch_idx % 250 == 0 or batch_idx == len(train_loader) - 1:
-                            history["train_loss"].append(running_loss)
-                            history["train_acc"].append(running_acc)
-                            progress = min(100, (history["batch_count"] * 100) // total_batches)
-                            
-                            queue.put({
-                                "model": f"model{model_num}",
-                                f"progress{model_num}": progress,
-                                "train_losses": history["train_loss"],
-                                "train_accuracies": history["train_acc"],
-                                "val_losses": history["val_loss"],
-                                "val_accuracies": history["val_acc"],
-                                "epoch": epoch + 1,
-                                "total_epochs": epochs,
-                                "batch": batch_idx + 1,
-                                "total_batches": len(train_loader),
-                                "current_loss": running_loss,
-                                "current_acc": running_acc,
-                                "current_val_loss": history["val_loss"][-1],
-                                "current_val_acc": history["val_acc"][-1]
-                            })
-                
-                    # Validation at end of epoch (including last epoch)
-                    model.eval()
-                    val_loss = 0
-                    correct = 0
-                    total = 0
-                    with torch.no_grad():
-                        for data, target in val_loader:
-                            data, target = data.to(self.device), target.to(self.device)
-                            output = model(data)
-                            val_loss += criterion(output, target).item()
-                            pred = output.max(1)[1]
-                            correct += pred.eq(target).sum().item()
-                            total += target.size(0)
-                    
-                    val_loss /= len(val_loader)
-                    val_acc = 100. * correct / total  # Fixed validation accuracy calculation
-                    history["val_loss"].append(val_loss)
-                    history["val_acc"].append(val_acc)
-
-                    # Send final update for this epoch
-                    queue.put({
-                        "model": f"model{model_num}",
-                        f"progress{model_num}": min(100, ((epoch + 1) * 100) // epochs),
-                        "train_losses": history["train_loss"],
-                        "train_accuracies": history["train_acc"],
-                        "val_losses": history["val_loss"],
-                        "val_accuracies": history["val_acc"],
-                        "epoch": epoch + 1,
-                        "total_epochs": epochs,
-                        "batch": len(train_loader),
-                        "total_batches": len(train_loader),
-                        "current_loss": running_loss,
-                        "current_acc": running_acc,
-                        "current_val_loss": val_loss,
-                        "current_val_acc": val_acc
-                    })
-
-                # Signal completion
-                queue.put({
-                    "model": f"model{model_num}", 
-                    "status": "complete"
-                })
-                
-            except Exception as e:
-                queue.put({"model": f"model{model_num}", "error": str(e)})
-
     async def process_queue(queue):
         completed_models = 0
         while completed_models < 2:
@@ -244,9 +253,9 @@ async def train_models(
                             return
                         elif "status" in data and data["status"] == "complete":
                             completed_models += 1
-                            await sio.emit('training_complete', data)  # Send model-specific completion
+                            await sio.emit('training_complete', data)
                             if completed_models == 2:
-                                await sio.emit('training_complete', {"status": "complete"})
+                                await sio.emit('training_complete', {"status": "all_complete"})
                         else:
                             await sio.emit('plot_update', data)
                     except:
@@ -259,7 +268,7 @@ async def train_models(
     async def start_training():
         try:
             queue = Queue()
-            trainer = ModelTrainer()
+            trainer = ModelTrainer(device)
             
             # Create thread parameters
             model1_params = (model1_conv1, model1_conv2, model1_conv3, 
@@ -286,6 +295,11 @@ async def train_models(
         except Exception as e:
             print(f"Error in training: {str(e)}")
             await sio.emit('training_error', {"error": str(e)})
+        finally:
+            # Cleanup
+            if 'queue' in locals():
+                while not queue.empty():
+                    _ = queue.get()
 
     # Start training in background
     asyncio.create_task(start_training())

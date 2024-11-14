@@ -369,46 +369,73 @@
             modelData.val_losses = data.val_losses;
             modelData.val_accuracies = data.val_accuracies;
 
-            const xRange = [...Array(Math.max(
-                model1Data.train_losses.length, 
-                model2Data.train_losses.length
-            )).keys()];
+            // Create layout update object with fixed axis ranges
+            const layoutUpdate = {
+                xaxis: {
+                    title: {
+                        text: 'Batch (x250)',
+                        font: { size: 12, color: '#2c3e50' },
+                        standoff: 20
+                    },
+                    automargin: true,
+                    range: [0, Math.max(
+                        model1Data.train_losses.length,
+                        model2Data.train_losses.length
+                    ) + 1]  // Add some padding
+                }
+            };
 
             // Update training loss plot
             Plotly.update('train-loss-plot', {
                 'x': [
-                    xRange.slice(0, model1Data.train_losses.length),
-                    xRange.slice(0, model2Data.train_losses.length)
+                    [...Array(model1Data.train_losses.length).keys()],
+                    [...Array(model2Data.train_losses.length).keys()]
                 ],
                 'y': [model1Data.train_losses, model2Data.train_losses]
-            });
+            }, layoutUpdate);
 
             // Update training accuracy plot
             Plotly.update('train-acc-plot', {
                 'x': [
-                    xRange.slice(0, model1Data.train_accuracies.length),
-                    xRange.slice(0, model2Data.train_accuracies.length)
+                    [...Array(model1Data.train_accuracies.length).keys()],
+                    [...Array(model2Data.train_accuracies.length).keys()]
                 ],
                 'y': [model1Data.train_accuracies, model2Data.train_accuracies]
-            });
+            }, layoutUpdate);
+
+            // Update validation plots with different x-axis title
+            const valLayoutUpdate = {
+                xaxis: {
+                    title: {
+                        text: 'Epochs',
+                        font: { size: 12, color: '#2c3e50' },
+                        standoff: 20
+                    },
+                    automargin: true,
+                    range: [0, Math.max(
+                        model1Data.val_losses.length,
+                        model2Data.val_losses.length
+                    ) + 1]
+                }
+            };
 
             // Update validation loss plot
             Plotly.update('val-loss-plot', {
                 'x': [
-                    xRange.slice(0, model1Data.val_losses.length),
-                    xRange.slice(0, model2Data.val_losses.length)
+                    [...Array(model1Data.val_losses.length).keys()],
+                    [...Array(model2Data.val_losses.length).keys()]
                 ],
                 'y': [model1Data.val_losses, model2Data.val_losses]
-            });
+            }, valLayoutUpdate);
 
             // Update validation accuracy plot
             Plotly.update('val-acc-plot', {
                 'x': [
-                    xRange.slice(0, model1Data.val_accuracies.length),
-                    xRange.slice(0, model2Data.val_accuracies.length)
+                    [...Array(model1Data.val_accuracies.length).keys()],
+                    [...Array(model2Data.val_accuracies.length).keys()]
                 ],
                 'y': [model1Data.val_accuracies, model2Data.val_accuracies]
-            });
+            }, valLayoutUpdate);
         }
 
         async function startTraining() {

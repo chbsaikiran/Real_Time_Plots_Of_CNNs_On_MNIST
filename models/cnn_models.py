@@ -7,14 +7,12 @@ class CNNModel(nn.Module):
         super(CNNModel, self).__init__()
         
         self.conv1 = nn.Sequential(
-            nn.Conv2d(1, conv1_layers, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2)
+            nn.Conv2d(1, conv1_layers, 3, stride=2, padding=1),
+            nn.ReLU(inplace=True)
         )
         self.conv2 = nn.Sequential(
-            nn.Conv2d(conv1_layers, conv2_layers, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2)
+            nn.Conv2d(conv1_layers, conv2_layers, 3, stride=2, padding=1),
+            nn.ReLU(inplace=True)
         )
         self.conv3 = nn.Sequential(
             nn.Conv2d(conv2_layers, conv3_layers, 3, stride=1, padding=1),

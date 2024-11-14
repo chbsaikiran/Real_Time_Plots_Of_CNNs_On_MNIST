@@ -12,6 +12,7 @@ import json
 import asyncio
 import threading
 from queue import Queue
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # Create FastAPI and SocketIO apps
 app = FastAPI()
@@ -107,6 +108,9 @@ async def train_models(
                         "epochs": epochs
                     }
                 })
+                
+                # Add learning rate scheduler
+                scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2, verbose=True)
                 
                 # Training loop
                 total_batches = len(train_loader) * epochs
@@ -242,8 +246,7 @@ async def train_models(
                             completed_models += 1
                             await sio.emit('training_complete', data)  # Send model-specific completion
                             if completed_models == 2:
-                                # Send final completion when both models are done
-                                await sio.emit('training_complete', {"status": "all_complete"})
+                                await sio.emit('training_complete', {"status": "complete"})
                         else:
                             await sio.emit('plot_update', data)
                     except:

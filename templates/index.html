@@ -8,150 +8,160 @@
     <div class="container">
         <h1>MNIST CNN Models Comparison</h1>
         
-        <div class="models-config">
-            <div class="model-config">
-                <h2>Model 1 Configuration</h2>
-                <form id="model1-form">
-                    <div class="form-group">
-                        <label>Conv1 Layers:</label>
-                        <input type="number" name="model1_conv1" value="32" min="1">
+        <div class="main-content">
+            <!-- Left Column -->
+            <div class="left-column">
+                <div class="models-config">
+                    <div class="model-config">
+                        <h2>Model 1 Configuration</h2>
+                        <form id="model1-form">
+                            <div class="form-group">
+                                <label>Conv1 Layers:</label>
+                                <input type="number" name="model1_conv1" value="32" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Conv2 Layers:</label>
+                                <input type="number" name="model1_conv2" value="64" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Conv3 Layers:</label>
+                                <input type="number" name="model1_conv3" value="128" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Optimizer:</label>
+                                <select name="model1_optimizer">
+                                    <option value="adam">Adam</option>
+                                    <option value="sgd">SGD</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Batch Size:</label>
+                                <input type="number" name="model1_batch_size" value="64" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Epochs:</label>
+                                <input type="number" name="model1_epochs" value="10" min="1">
+                            </div>
+                        </form>
                     </div>
-                    <div class="form-group">
-                        <label>Conv2 Layers:</label>
-                        <input type="number" name="model1_conv2" value="64" min="1">
+                    
+                    <div class="model-config">
+                        <h2>Model 2 Configuration</h2>
+                        <form id="model2-form">
+                            <div class="form-group">
+                                <label>Conv1 Layers:</label>
+                                <input type="number" name="model2_conv1" value="16" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Conv2 Layers:</label>
+                                <input type="number" name="model2_conv2" value="32" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Conv3 Layers:</label>
+                                <input type="number" name="model2_conv3" value="64" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Optimizer:</label>
+                                <select name="model2_optimizer">
+                                    <option value="adam">Adam</option>
+                                    <option value="sgd">SGD</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Batch Size:</label>
+                                <input type="number" name="model2_batch_size" value="32" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Epochs:</label>
+                                <input type="number" name="model2_epochs" value="10" min="1">
+                            </div>
+                        </form>
                     </div>
-                    <div class="form-group">
-                        <label>Conv3 Layers:</label>
-                        <input type="number" name="model1_conv3" value="128" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Optimizer:</label>
-                        <select name="model1_optimizer">
-                            <option value="adam">Adam</option>
-                            <option value="sgd">SGD</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Batch Size:</label>
-                        <input type="number" name="model1_batch_size" value="64" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Epochs:</label>
-                        <input type="number" name="model1_epochs" value="10" min="1">
-                    </div>
-                </form>
-            </div>
-            
-            <div class="model-config">
-                <h2>Model 2 Configuration</h2>
-                <form id="model2-form">
-                    <div class="form-group">
-                        <label>Conv1 Layers:</label>
-                        <input type="number" name="model2_conv1" value="16" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Conv2 Layers:</label>
-                        <input type="number" name="model2_conv2" value="32" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Conv3 Layers:</label>
-                        <input type="number" name="model2_conv3" value="64" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Optimizer:</label>
-                        <select name="model2_optimizer">
-                            <option value="adam">Adam</option>
-                            <option value="sgd">SGD</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Batch Size:</label>
-                        <input type="number" name="model2_batch_size" value="32" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Epochs:</label>
-                        <input type="number" name="model2_epochs" value="10" min="1">
-                    </div>
-                </form>
-            </div>
-        </div>
-        
-        <button id="train-button" onclick="startTraining()">Train Models</button>
-        
-        <div class="progress-container">
-            <div class="progress-section">
-                <h3>Model 1 Progress</h3>
-                <div class="progress">
-                    <div id="progress1" class="progress-bar" style="width: 0%">0%</div>
                 </div>
-                <div id="status1" class="training-status">Waiting to start...</div>
-                <div id="metrics1" class="metrics">
-                    <span class="loss">Loss: -</span>
-                    <span class="accuracy">Accuracy: -</span>
+                
+                <button id="train-button" onclick="startTraining()">Train Models</button>
+                
+                <div class="progress-container">
+                    <div class="progress-section">
+                        <h3>Model 1 Progress</h3>
+                        <div class="progress">
+                            <div id="progress1" class="progress-bar" style="width: 0%">0%</div>
+                        </div>
+                        <div id="status1" class="training-status">Waiting to start...</div>
+                        <div id="metrics1" class="metrics">
+                            <span class="loss">Loss: -</span>
+                            <span class="accuracy">Accuracy: -</span>
+                        </div>
+                        <div id="timer1" class="timer">Time: 00:00:00</div>
+                    </div>
+                    <div class="progress-section">
+                        <h3>Model 2 Progress</h3>
+                        <div class="progress">
+                            <div id="progress2" class="progress-bar" style="width: 0%">0%</div>
+                        </div>
+                        <div id="status2" class="training-status">Waiting to start...</div>
+                        <div id="metrics2" class="metrics">
+                            <span class="loss">Loss: -</span>
+                            <span class="accuracy">Accuracy: -</span>
+                        </div>
+                        <div id="timer2" class="timer">Time: 00:00:00</div>
+                    </div>
                 </div>
-                <div id="timer1" class="timer">Time: 00:00:00</div>
             </div>
-            <div class="progress-section">
-                <h3>Model 2 Progress</h3>
-                <div class="progress">
-                    <div id="progress2" class="progress-bar" style="width: 0%">0%</div>
-                </div>
-                <div id="status2" class="training-status">Waiting to start...</div>
-                <div id="metrics2" class="metrics">
-                    <span class="loss">Loss: -</span>
-                    <span class="accuracy">Accuracy: -</span>
-                </div>
-                <div id="timer2" class="timer">Time: 00:00:00</div>
-            </div>
-        </div>
-        
-        <h2 class="section-heading">Training Metrics</h2>
-        <div class="plots-container">
-            <div class="plot">
-                <h3>Training Loss</h3>
-                <div id="train-loss-plot" style="width:100%; height:400px;"></div>
-            </div>
-            <div class="plot">
-                <h3>Training Accuracy</h3>
-                <div id="train-acc-plot" style="width:100%; height:400px;"></div>
-            </div>
-        </div>
 
-        <h2 class="section-heading">Validation Metrics</h2>
-        <div class="plots-container">
-            <div class="plot">
-                <h3>Validation Loss</h3>
-                <div id="val-loss-plot" style="width:100%; height:400px;"></div>
-            </div>
-            <div class="plot">
-                <h3>Validation Accuracy</h3>
-                <div id="val-acc-plot" style="width:100%; height:400px;"></div>
-            </div>
-        </div>
-        
-        <div class="action-buttons">
-            <button id="test-button" onclick="showTestResults()">Test Results</button>
-            <button id="train-metrics-button" onclick="showModelMetrics('train')">Training Metrics</button>
-            <button id="test-metrics-button" onclick="showModelMetrics('test')">Test Metrics</button>
-        </div>
+            <!-- Right Column -->
+            <div class="right-column">
+                <div class="plots-section">
+                    <h2 class="section-heading">Training Metrics</h2>
+                    <div class="plots-container">
+                        <div class="plot">
+                            <h3>Training Loss</h3>
+                            <div id="train-loss-plot" style="width:100%; height:400px;"></div>
+                        </div>
+                        <div class="plot">
+                            <h3>Training Accuracy</h3>
+                            <div id="train-acc-plot" style="width:100%; height:400px;"></div>
+                        </div>
+                    </div>
 
-        <div id="test-results" class="test-results" style="display: none;">
-            <h2>Test Results</h2>
-            <div class="results-grid"></div>
-        </div>
-
-        <div id="model-metrics" class="model-metrics" style="display: none;">
-            <h2>Model Metrics</h2>
-            <div class="metrics-container">
-                <div class="model-metric">
-                    <h3>Model 1 Confusion Matrix</h3>
-                    <div id="confusion-matrix1"></div>
-                    <div id="model1-scores" class="score-metrics"></div>
+                    <h2 class="section-heading">Validation Metrics</h2>
+                    <div class="plots-container">
+                        <div class="plot">
+                            <h3>Validation Loss</h3>
+                            <div id="val-loss-plot" style="width:100%; height:400px;"></div>
+                        </div>
+                        <div class="plot">
+                            <h3>Validation Accuracy</h3>
+                            <div id="val-acc-plot" style="width:100%; height:400px;"></div>
+                        </div>
+                    </div>
                 </div>
-                <div class="model-metric">
-                    <h3>Model 2 Confusion Matrix</h3>
-                    <div id="confusion-matrix2"></div>
-                    <div id="model2-scores" class="score-metrics"></div>
+                
+                <div class="action-buttons">
+                    <button id="test-button" onclick="showTestResults()">Test Results</button>
+                    <button id="train-metrics-button" onclick="showModelMetrics('train')">Training Metrics</button>
+                    <button id="test-metrics-button" onclick="showModelMetrics('test')">Test Metrics</button>
+                </div>
+
+                <div id="test-results" class="test-results" style="display: none;">
+                    <h2>Test Results</h2>
+                    <div class="results-grid"></div>
+                </div>
+
+                <div id="model-metrics" class="model-metrics" style="display: none;">
+                    <h2>Model Metrics</h2>
+                    <div class="metrics-container">
+                        <div class="model-metric">
+                            <h3>Model 1 Confusion Matrix</h3>
+                            <div id="confusion-matrix1"></div>
+                            <div id="model1-scores" class="score-metrics"></div>
+                        </div>
+                        <div class="model-metric">
+                            <h3>Model 2 Confusion Matrix</h3>
+                            <div id="confusion-matrix2"></div>
+                            <div id="model2-scores" class="score-metrics"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -223,7 +233,7 @@
             const commonLayout = {
                 showlegend: true,
                 legend: {
-                    x: 1.1,
+                    x: 1.05,
                     xanchor: 'left',
                     y: 1,
                     yanchor: 'top',
@@ -232,35 +242,123 @@
                     borderwidth: 1
                 },
                 margin: {
-                    l: 50,
-                    r: 100,
+                    l: 60,
+                    r: 80,
                     t: 50,
-                    b: 50
-                }
+                    b: 80
+                },
+                font: {
+                    family: 'Segoe UI, sans-serif',
+                    size: 12,
+                    color: '#2c3e50'
+                },
+                width: null,
+                height: 350,
+                autosize: true
             };
 
             // Training Loss Plot
             Plotly.newPlot('train-loss-plot', 
                 [{...commonTrace1}, {...commonTrace2}], 
-                {...commonLayout, title: 'Training Loss', xaxis: {title: 'Batch (x250)'}, yaxis: {title: 'Loss'}}
+                {
+                    ...commonLayout,
+                    title: 'Training Loss',
+                    xaxis: {
+                        title: {
+                            text: 'Batch (x250)',
+                            font: { size: 12, color: '#2c3e50' },
+                            standoff: 20
+                        },
+                        automargin: true
+                    },
+                    yaxis: {
+                        title: {
+                            text: 'Loss',
+                            font: { size: 12, color: '#2c3e50' },
+                            standoff: 20
+                        },
+                        automargin: true
+                    }
+                },
+                {responsive: true}
             );
 
             // Training Accuracy Plot
             Plotly.newPlot('train-acc-plot', 
                 [{...commonTrace1}, {...commonTrace2}], 
-                {...commonLayout, title: 'Training Accuracy', xaxis: {title: 'Batch (x250)'}, yaxis: {title: 'Accuracy (%)'}}
+                {
+                    ...commonLayout,
+                    title: 'Training Accuracy',
+                    xaxis: {
+                        title: {
+                            text: 'Batch (x250)',
+                            font: { size: 12, color: '#2c3e50' },
+                            standoff: 20
+                        },
+                        automargin: true
+                    },
+                    yaxis: {
+                        title: {
+                            text: 'Accuracy (%)',
+                            font: { size: 12, color: '#2c3e50' },
+                            standoff: 20
+                        },
+                        automargin: true
+                    }
+                },
+                {responsive: true}
             );
 
             // Validation Loss Plot
             Plotly.newPlot('val-loss-plot', 
                 [{...commonTrace1}, {...commonTrace2}], 
-                {...commonLayout, title: 'Validation Loss', xaxis: {title: 'Epochs'}, yaxis: {title: 'Loss'}}
+                {
+                    ...commonLayout,
+                    title: 'Validation Loss',
+                    xaxis: {
+                        title: {
+                            text: 'Epochs',
+                            font: { size: 12, color: '#2c3e50' },
+                            standoff: 20
+                        },
+                        automargin: true
+                    },
+                    yaxis: {
+                        title: {
+                            text: 'Loss',
+                            font: { size: 12, color: '#2c3e50' },
+                            standoff: 20
+                        },
+                        automargin: true
+                    }
+                },
+                {responsive: true}
             );
 
             // Validation Accuracy Plot
             Plotly.newPlot('val-acc-plot', 
                 [{...commonTrace1}, {...commonTrace2}], 
-                {...commonLayout, title: 'Validation Accuracy', xaxis: {title: 'Epochs'}, yaxis: {title: 'Accuracy (%)'}}
+                {
+                    ...commonLayout,
+                    title: 'Validation Accuracy',
+                    xaxis: {
+                        title: {
+                            text: 'Epochs',
+                            font: { size: 12, color: '#2c3e50' },
+                            standoff: 20
+                        },
+                        automargin: true
+                    },
+                    yaxis: {
+                        title: {
+                            text: 'Accuracy (%)',
+                            font: { size: 12, color: '#2c3e50' },
+                            standoff: 20
+                        },
+                        automargin: true
+                    }
+                },
+                {responsive: true}
             );
         }
 
@@ -324,6 +422,9 @@
             document.getElementById('status2').textContent = 'Waiting to start...';
             document.getElementById('test-results').style.display = 'none';
             document.getElementById('model-metrics').style.display = 'none';
+            
+            // Clear previous model summaries
+            document.querySelectorAll('.model-summary').forEach(el => el.remove());
             
             // Reset metrics display
             document.querySelector('#metrics1 .loss').textContent = 'Loss: -';
@@ -629,6 +730,12 @@
 
         // Add this function to format the model summary
         function displayModelSummary(summary, modelNum, config) {
+            // Remove any existing summary for this model
+            const existingSummary = document.querySelector(`.progress-section:nth-child(${modelNum}) .model-summary`);
+            if (existingSummary) {
+                existingSummary.remove();
+            }
+
             const summaryDiv = document.createElement('div');
             summaryDiv.className = 'model-summary';
             

@@ -7,6 +7,7 @@ import numpy as np
 import io
 import base64
 import asyncio
+import PIL
 
 def get_data_loaders(batch_size):
     transform = transforms.Compose([
@@ -107,24 +108,51 @@ def create_plot_data(train_losses, train_accuracies, val_losses, val_accuracies,
     }
 
 def get_random_test_samples(test_loader, num_samples=10, return_original=False):
-    data_iter = iter(test_loader)
-    images, labels = next(data_iter)
-    indices = torch.randperm(len(images))[:num_samples]
+    # Get random indices from the entire dataset
+    dataset_size = len(test_loader.dataset)
+    random_indices = torch.randperm(dataset_size)[:num_samples]
     
     if return_original:
-        # Get original images before normalization
         original_images = []
-        for idx in indices:
-            # Get original image directly from the MNIST dataset
-            original_idx = test_loader.dataset.indices[idx] if hasattr(test_loader.dataset, 'indices') else idx
-            original_img = test_loader.dataset.data[original_idx]
-            # Convert to numpy array (it's already in 0-255 range)
-            img_np = original_img.numpy() if isinstance(original_img, torch.Tensor) else original_img
-            original_images.append(img_np)
+        labels = []
+        transformed_images = []
         
-        return images[indices], labels[indices], original_images
+        for idx in random_indices:
+            # Get original image and label directly from the dataset
+            original_img = test_loader.dataset.data[idx]
+            label = test_loader.dataset.targets[idx]
+            
+            # Convert tensor to numpy array for original image
+            if isinstance(original_img, torch.Tensor):
+                original_img = original_img.numpy()
+            
+            # Get transformed image
+            transformed_img = test_loader.dataset.transform(PIL.Image.fromarray(original_img))
+            
+            # Store the data
+            original_images.append(original_img)
+            labels.append(label.item() if isinstance(label, torch.Tensor) else label)
+            transformed_images.append(transformed_img)
+        
+        # Stack transformed images into a batch
+        transformed_images = torch.stack(transformed_images)
+        labels = torch.tensor(labels)
+        
+        return transformed_images, labels, original_images
     
-    return images[indices], labels[indices]
+    # For non-original case
+    images = []
+    labels = []
+    for idx in random_indices:
+        img = test_loader.dataset.data[idx]
+        if isinstance(img, torch.Tensor):
+            img = img.numpy()
+        label = test_loader.dataset.targets[idx]
+        transformed_img = test_loader.dataset.transform(PIL.Image.fromarray(img))
+        images.append(transformed_img)
+        labels.append(label.item() if isinstance(label, torch.Tensor) else label)
+    
+    return torch.stack(images), torch.tensor(labels)
 
 def calculate_confusion_matrix(true_labels, pred_labels):
     """Calculate confusion matrix for MNIST (10 classes)"""

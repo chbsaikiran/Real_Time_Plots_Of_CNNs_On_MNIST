@@ -305,19 +305,46 @@ async def disconnect(sid):
 
 @app.get("/train")
 async def train_models(
-    model1_conv1: int = Query(...),
-    model1_conv2: int = Query(...),
-    model1_conv3: int = Query(...),
-    model1_optimizer: str = Query(...),
-    model1_batch_size: int = Query(...),
-    model1_epochs: int = Query(...),
-    model2_conv1: int = Query(...),
-    model2_conv2: int = Query(...),
-    model2_conv3: int = Query(...),
-    model2_optimizer: str = Query(...),
-    model2_batch_size: int = Query(...),
-    model2_epochs: int = Query(...),
+    # Model 1 Parameters
+    model1_conv1: int = Query(..., description="Number of filters in first conv layer of Model 1"),
+    model1_conv2: int = Query(..., description="Number of filters in second conv layer of Model 1"),
+    model1_conv3: int = Query(..., description="Number of filters in third conv layer of Model 1"),
+    model1_optimizer: str = Query(..., description="Optimizer for Model 1 (adam/sgd)"),
+    model1_batch_size: int = Query(..., description="Batch size for Model 1"),
+    model1_epochs: int = Query(..., description="Number of epochs for Model 1"),
+    
+    # Model 2 Parameters
+    model2_conv1: int = Query(..., description="Number of filters in first conv layer of Model 2"),
+    model2_conv2: int = Query(..., description="Number of filters in second conv layer of Model 2"),
+    model2_conv3: int = Query(..., description="Number of filters in third conv layer of Model 2"),
+    model2_optimizer: str = Query(..., description="Optimizer for Model 2 (adam/sgd)"),
+    model2_batch_size: int = Query(..., description="Batch size for Model 2"),
+    model2_epochs: int = Query(..., description="Number of epochs for Model 2"),
 ):
+    # Print model configurations in a readable format
+    print("\n" + "="*50)
+    print("Training Configuration:")
+    print("="*50)
+    
+    print("\nModel 1 Configuration:")
+    print("-"*20)
+    print(f"Conv1 Filters: {model1_conv1}")
+    print(f"Conv2 Filters: {model1_conv2}")
+    print(f"Conv3 Filters: {model1_conv3}")
+    print(f"Optimizer: {model1_optimizer}")
+    print(f"Batch Size: {model1_batch_size}")
+    print(f"Epochs: {model1_epochs}")
+    
+    print("\nModel 2 Configuration:")
+    print("-"*20)
+    print(f"Conv1 Filters: {model2_conv1}")
+    print(f"Conv2 Filters: {model2_conv2}")
+    print(f"Conv3 Filters: {model2_conv3}")
+    print(f"Optimizer: {model2_optimizer}")
+    print(f"Batch Size: {model2_batch_size}")
+    print(f"Epochs: {model2_epochs}")
+    print("\n" + "="*50 + "\n")
+
     async def process_queue(queue):
         completed_models = 0
         while completed_models < 2:

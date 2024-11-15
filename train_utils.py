@@ -28,7 +28,7 @@ def get_data_loaders(batch_size):
     test_dataset = datasets.MNIST('./data', train=False, transform=transform)
     
     # Split training data into train and validation (95-5 split)
-    train_size = int(0.95 * len(train_dataset))
+    train_size = int(0.8 * len(train_dataset))
     val_size = len(train_dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size])
     

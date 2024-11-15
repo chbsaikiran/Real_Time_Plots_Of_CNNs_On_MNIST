@@ -445,7 +445,7 @@
         }
 
         async function startTraining() {
-            if (isTraining) {
+            if (isTraining || socket) {
                 return;
             }
             
@@ -453,11 +453,19 @@
                 // Reset UI state first
                 resetUI();
                 
-                // Setup WebSocket connection
-                if (socket) {
-                    socket.close();
-                }
+                // Create new socket connection
                 socket = io();
+                
+                // Setup all socket listeners
+                socket.on('connect', () => {
+                    console.log('Socket connected');
+                });
+                
+                socket.on('connect_error', (error) => {
+                    console.error('Socket connection error:', error);
+                    isTraining = false;
+                    socket = null;
+                });
                 
                 // Setup all socket listeners before starting training
                 socket.on('plot_update', function(data) {
@@ -548,12 +556,13 @@
                     document.getElementById('stop-button').disabled = true;
                 });
 
-                // Wait for socket to connect
+                // Wait for socket connection
                 await new Promise((resolve, reject) => {
-                    socket.on('connect', resolve);
-                    socket.on('connect_error', reject);
-                    // Add timeout
-                    setTimeout(() => reject(new Error('Socket connection timeout')), 5000);
+                    const timeout = setTimeout(() => reject(new Error('Socket connection timeout')), 5000);
+                    socket.once('connect', () => {
+                        clearTimeout(timeout);
+                        resolve();
+                    });
                 });
 
                 // Start the training process
@@ -579,6 +588,10 @@
                 console.error('Error:', error);
                 alert('Error starting training: ' + error.message);
                 isTraining = false;
+                if (socket) {
+                    socket.close();
+                    socket = null;
+                }
                 document.getElementById('train-button').disabled = false;
                 document.getElementById('stop-button').disabled = true;
                 document.getElementById('status1').textContent = 'Error starting training';
@@ -612,7 +625,7 @@
                     timer2Interval = null;
                 }
                 
-                // Reset data
+                // Reset data with new objects
                 model1Data = {
                     train_losses: [],
                     train_accuracies: [],
@@ -626,18 +639,29 @@
                     val_accuracies: []
                 };
                 
-                // Close and remove socket connection
+                // Close and cleanup socket connection
                 if (socket) {
-                    socket.off('plot_update');  // Remove all plot_update listeners
-                    socket.off('training_complete');  // Remove all training_complete listeners
-                    socket.off('training_error');  // Remove all training_error listeners
+                    socket.removeAllListeners();
+                    socket.off('connect');
+                    socket.off('connect_error');
+                    socket.off('plot_update');
+                    socket.off('training_complete');
+                    socket.off('training_error');
+                    socket.off('training_stopped');
                     socket.close();
                     socket = null;
                 }
                 
                 isTraining = false;
+                
+                // Wait for cleanup to complete
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
             } catch (error) {
                 console.error('Error stopping training:', error);
+                // Reset training state even if error occurs
+                isTraining = false;
+                socket = null;
             }
         }
 

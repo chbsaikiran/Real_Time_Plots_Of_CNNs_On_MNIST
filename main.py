@@ -45,26 +45,38 @@ global_queue = None
 
 @app.get("/stop_training")
 async def stop_training():
-    global stop_training, training_threads, global_queue
+    global stop_training, training_threads, global_queue, model1, model2
     try:
+        # Set stop flag first
         stop_training = True
         
         # Wait for threads to complete
         for thread in training_threads:
             if thread.is_alive():
-                thread.join(timeout=1.0)
+                thread.join(timeout=2.0)  # Increased timeout
         
-        # Clear the queue of any remaining messages if it exists
+        # Clear resources
         if global_queue:
             while not global_queue.empty():
                 _ = global_queue.get()
+            global_queue = None
         
-        # Reset stop flag and clear thread list
+        # Clear models
+        model1 = None
+        model2 = None
+        
+        # Reset flags and lists
         stop_training = False
         training_threads = []
         
-        # Send a final stop message to frontend
+        # Force garbage collection
+        import gc
+        gc.collect()
+        
         await sio.emit('training_stopped', {"status": "Training stopped"})
+        
+        # Add small delay before returning
+        await asyncio.sleep(0.5)
         
         return JSONResponse({"status": "Training stopped"})
     except Exception as e:
@@ -131,13 +143,13 @@ class ModelTrainer:
             history = {
                 "train_loss": [], 
                 "train_acc": [],
-                "val_loss": [],  # Remove initial value
-                "val_acc": [],   # Remove initial value
+                "val_loss": [],  # Initialize with default value
+                "val_acc": [],   # Initialize with default value
                 "batch_count": 0,
                 "learning_rates": []
             }
             
-            # Remove initial validation metrics calculation and just send initial status update
+            # Send initial status update
             queue.put({
                 "model": f"model{model_num}",
                 f"progress{model_num}": 0,
@@ -151,8 +163,8 @@ class ModelTrainer:
                 "total_batches": len(train_loader),
                 "current_loss": 0,
                 "current_acc": 0,
-                "current_val_loss": 0,
-                "current_val_acc": 0,
+                "current_val_loss": history["val_loss"],  # Use initialized value
+                "current_val_acc": history["val_acc"],    # Use initialized value
                 "current_lr": optimizer.param_groups[0]['lr']
             })
             
@@ -161,6 +173,9 @@ class ModelTrainer:
             
             # Start actual training
             for epoch in range(epochs):
+                if stop_training:  # Check stop flag at epoch start
+                    break
+
                 model.train()  # Ensure model is in training mode
                 for batch_idx, (data, target) in enumerate(train_loader, 1):
                     try:
@@ -190,29 +205,35 @@ class ModelTrainer:
                         running_acc = (running_acc * total_samples + acc * batch_size) / (total_samples + batch_size)
                         total_samples += batch_size
                         history["batch_count"] += 1
+
+                        if ((batch_idx % 250 == 0 or batch_idx == len(train_loader)) and epoch == 0):
+                            history["train_loss"].append(running_loss)
+                            history["train_acc"].append(running_acc)
                         
-                        if batch_idx % 250 == 0 or batch_idx == len(train_loader):
+                        if ((batch_idx % 250 == 0 or batch_idx == len(train_loader)) and (epochs == 1 or epoch > 0)):
                             history["train_loss"].append(running_loss)
                             history["train_acc"].append(running_acc)
                             progress = min(100, (history["batch_count"] * 100) // total_batches)
                             
-                            queue.put({
-                                "model": f"model{model_num}",
-                                f"progress{model_num}": progress,
-                                "train_losses": history["train_loss"],
-                                "train_accuracies": history["train_acc"],
-                                "val_losses": history["val_loss"],
-                                "val_accuracies": history["val_acc"],
-                                "epoch": epoch + 1,
-                                "total_epochs": epochs,
-                                "batch": batch_idx,
-                                "total_batches": len(train_loader),
-                                "current_loss": running_loss,
-                                "current_acc": running_acc,
-                                "current_val_loss": history["val_loss"][-1],
-                                "current_val_acc": history["val_acc"][-1],
-                                "current_lr": optimizer.param_groups[0]['lr']
-                            })
+                            # Update plots only if not stopped
+                            if not stop_training:
+                                queue.put({
+                                    "model": f"model{model_num}",
+                                    f"progress{model_num}": progress,
+                                    "train_losses": history["train_loss"],
+                                    "train_accuracies": history["train_acc"],
+                                    "val_losses": history["val_loss"],
+                                    "val_accuracies": history["val_acc"],
+                                    "epoch": epoch + 1,
+                                    "total_epochs": epochs,
+                                    "batch": batch_idx,
+                                    "total_batches": len(train_loader),
+                                    "current_loss": running_loss,
+                                    "current_acc": running_acc,
+                                    "current_val_loss": history["val_loss"][-1],
+                                    "current_val_acc": history["val_acc"][-1],
+                                    "current_lr": optimizer.param_groups[0]['lr']
+                                })
 
                     except Exception as e:
                         print(f"Error in batch training for model{model_num}: {str(e)}")
@@ -261,8 +282,13 @@ class ModelTrainer:
                     "current_lr": current_lr
                 })
 
-            # Only send completion if training wasn't stopped
-            if not stop_training:
+            # Send completion status
+            if stop_training:
+                queue.put({
+                    "model": f"model{model_num}", 
+                    "status": "stopped"
+                })
+            else:
                 queue.put({
                     "model": f"model{model_num}", 
                     "status": "complete"

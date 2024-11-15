@@ -87,7 +87,7 @@
                         <div class="progress">
                             <div id="progress1" class="progress-bar" style="width: 0%">0%</div>
                         </div>
-                        <div id="status1" class="training-status">Waiting to start...</div>
+                        <div id="status1" class="training-status">Starting training...</div>
                         <div id="metrics1" class="metrics">
                             <span class="loss">Loss: -</span>
                             <span class="accuracy">Accuracy: -</span>
@@ -100,7 +100,7 @@
                         <div class="progress">
                             <div id="progress2" class="progress-bar" style="width: 0%">0%</div>
                         </div>
-                        <div id="status2" class="training-status">Waiting to start...</div>
+                        <div id="status2" class="training-status">Starting training...</div>
                         <div id="metrics2" class="metrics">
                             <span class="loss">Loss: -</span>
                             <span class="accuracy">Accuracy: -</span>
@@ -447,10 +447,10 @@
             document.getElementById('progress1').textContent = '0%';
             document.getElementById('progress2').style.width = '0%';
             document.getElementById('progress2').textContent = '0%';
-            document.getElementById('status1').textContent = 'Waiting to start...';
-            document.getElementById('status2').textContent = 'Waiting to start...';
-            document.getElementById('test-results').style.display = 'none';
-            document.getElementById('model-metrics').style.display = 'none';
+            
+            // Change initial status to "Starting training..."
+            document.getElementById('status1').textContent = 'Starting training...';
+            document.getElementById('status2').textContent = 'Starting training...';
             
             // Clear previous model summaries
             document.querySelectorAll('.model-summary').forEach(el => el.remove());
@@ -493,6 +493,14 @@
             socket.on('plot_update', function(data) {
                 if (data.type === "model_summary") {
                     displayModelSummary(data.summary, data.model === "model1" ? 1 : 2, data.config);
+                    // Start timer immediately after receiving model summary
+                    if (data.model === "model1" && !startTime1) {
+                        startTime1 = Date.now();
+                        timer1Interval = setInterval(updateTimer1, 1000);
+                    } else if (data.model === "model2" && !startTime2) {
+                        startTime2 = Date.now();
+                        timer2Interval = setInterval(updateTimer2, 1000);
+                    }
                     return;
                 }
                 // Update progress bars and status
@@ -507,11 +515,6 @@
                         `Accuracy: ${data.current_acc.toFixed(2)}%`;
                     document.querySelector('#metrics1 .learning-rate').textContent = 
                         `LR: ${data.current_lr.toExponential(2)}`;
-                    // Start timer for model 1 if not started
-                    if (!startTime1) {
-                        startTime1 = Date.now();
-                        timer1Interval = setInterval(updateTimer1, 1000);
-                    }
                 } else {
                     document.getElementById('progress2').style.width = `${data.progress2}%`;
                     document.getElementById('progress2').textContent = `${data.progress2}%`;
@@ -523,11 +526,6 @@
                         `Accuracy: ${data.current_acc.toFixed(2)}%`;
                     document.querySelector('#metrics2 .learning-rate').textContent = 
                         `LR: ${data.current_lr.toExponential(2)}`;
-                    // Start timer for model 2 if not started
-                    if (!startTime2) {
-                        startTime2 = Date.now();
-                        timer2Interval = setInterval(updateTimer2, 1000);
-                    }
                 }
 
                 // Update plots
@@ -561,18 +559,21 @@
                 console.error('Training error:', data.error);
                 alert('Error during training: ' + data.error);
                 document.getElementById('train-button').disabled = false;
+                // Reset status on error
+                document.getElementById('status1').textContent = 'Error starting training';
+                document.getElementById('status2').textContent = 'Error starting training';
             });
 
-            // Collect and send form data
-            const formData = new FormData();
-            document.querySelectorAll('#model1-form input, #model1-form select').forEach(input => {
-                formData.append(input.name, input.value);
-            });
-            document.querySelectorAll('#model2-form input, #model2-form select').forEach(input => {
-                formData.append(input.name, input.value);
-            });
-
+            // Move the form data collection and fetch call to the top
             try {
+                const formData = new FormData();
+                document.querySelectorAll('#model1-form input, #model1-form select').forEach(input => {
+                    formData.append(input.name, input.value);
+                });
+                document.querySelectorAll('#model2-form input, #model2-form select').forEach(input => {
+                    formData.append(input.name, input.value);
+                });
+
                 const params = new URLSearchParams(formData);
                 const response = await fetch(`/train?${params.toString()}`);
                 if (!response.ok) {
@@ -582,6 +583,9 @@
                 console.error('Error:', error);
                 alert('Error starting training: ' + error.message);
                 document.getElementById('train-button').disabled = false;
+                // Reset status on error
+                document.getElementById('status1').textContent = 'Error starting training';
+                document.getElementById('status2').textContent = 'Error starting training';
             }
         }
 

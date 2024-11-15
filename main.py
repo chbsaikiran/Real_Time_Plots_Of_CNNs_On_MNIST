@@ -322,50 +322,38 @@ async def train_models(
         completed_models = 0
         while completed_models < 2:
             try:
-                # Check queue more frequently
                 for _ in range(10):
                     try:
                         if queue.empty():
-                            await asyncio.sleep(0.01)  # Short sleep if queue is empty
+                            await asyncio.sleep(0.01)
                             continue
                         
                         data = queue.get_nowait()
-                        print(f"Processing queue data: {data}")  # Debug print
                         
                         if "error" in data:
-                            print(f"Error in training: {data['error']}")
                             await sio.emit('training_error', data)
                             return
                         elif "status" in data and data["status"] == "complete":
-                            print(f"Model completed: {data['model']}")
                             completed_models += 1
                             await sio.emit('training_complete', data)
                             if completed_models == 2:
-                                print("Both models completed")
                                 await sio.emit('training_complete', {"status": "all_complete"})
                         else:
-                            print(f"Sending plot update for {data.get('model', 'unknown')}")
                             await sio.emit('plot_update', data)
-                            await asyncio.sleep(0.01)  # Small delay after sending data
+                            await asyncio.sleep(0.01)
                     except queue.Empty:
-                        await asyncio.sleep(0.01)  # Sleep if queue is empty
+                        await asyncio.sleep(0.01)
                         continue
                     except Exception as e:
-                        print(f"Error processing data: {str(e)}")
                         continue
                 await asyncio.sleep(0.01)
             except Exception as e:
-                print(f"Error in process_queue outer loop: {str(e)}")
                 await asyncio.sleep(0.01)
-
-        print("Queue processing completed")
 
     async def start_training():
         global training_threads, stop_training, global_queue
         try:
             stop_training = False
-            
-            print("Starting training process...")
             queue = Queue()
             global_queue = queue
             trainer = ModelTrainer(device)
@@ -376,32 +364,25 @@ async def train_models(
             model2_params = (model2_conv1, model2_conv2, model2_conv3, 
                            model2_optimizer, model2_batch_size, model2_epochs, 2)
             
-            print("Creating training threads...")
             t1 = threading.Thread(target=trainer.train_model_thread, 
                                 args=(model1_params, queue))
             t2 = threading.Thread(target=trainer.train_model_thread, 
                                 args=(model2_params, queue))
             
             training_threads = [t1, t2]
-            print("Starting threads...")
             t1.start()
             t2.start()
             
-            print("Processing queue...")
             await process_queue(queue)
             
-            print("Waiting for threads to complete...")
             t1.join()
             t2.join()
             
             training_threads = []
-            print("Training completed")
 
         except Exception as e:
-            print(f"Error in training: {str(e)}")
             await sio.emit('training_error', {"error": str(e)})
         finally:
-            # Reset stop_training flag in finally block
             stop_training = False
             if 'queue' in locals():
                 while not queue.empty():

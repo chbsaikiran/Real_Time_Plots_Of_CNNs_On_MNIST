@@ -601,68 +601,78 @@
 
         async function stopTraining() {
             try {
+                // Disable stop button immediately
+                document.getElementById('stop-button').disabled = true;
+                
                 const response = await fetch('/stop_training');
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
-                // Disable stop button and enable train button
-                document.getElementById('stop-button').disabled = true;
+                // Reset UI and clean up resources
+                resetUI();
+                clearTimers();
+                clearSocket();
+                resetData();
+                
+                // Enable train button
                 document.getElementById('train-button').disabled = false;
                 
-                // Reset UI
-                resetUI();
-                
-                // Reset timer variables
-                startTime1 = null;
-                startTime2 = null;
-                if (timer1Interval) {
-                    clearInterval(timer1Interval);
-                    timer1Interval = null;
-                }
-                if (timer2Interval) {
-                    clearInterval(timer2Interval);
-                    timer2Interval = null;
-                }
-                
-                // Reset data with new objects
-                model1Data = {
-                    train_losses: [],
-                    train_accuracies: [],
-                    val_losses: [],
-                    val_accuracies: []
-                };
-                model2Data = {
-                    train_losses: [],
-                    train_accuracies: [],
-                    val_losses: [],
-                    val_accuracies: []
-                };
-                
-                // Close and cleanup socket connection
-                if (socket) {
-                    socket.removeAllListeners();
-                    socket.off('connect');
-                    socket.off('connect_error');
-                    socket.off('plot_update');
-                    socket.off('training_complete');
-                    socket.off('training_error');
-                    socket.off('training_stopped');
-                    socket.close();
-                    socket = null;
-                }
-                
-                isTraining = false;
-                
-                // Wait for cleanup to complete
-                await new Promise(resolve => setTimeout(resolve, 500));
+                // Reload the page to get fresh state
+                window.location.reload();
                 
             } catch (error) {
                 console.error('Error stopping training:', error);
-                // Reset training state even if error occurs
+                // Even if error occurs, reset everything
                 isTraining = false;
                 socket = null;
+                document.getElementById('train-button').disabled = false;
+                document.getElementById('stop-button').disabled = true;
+                resetUI();
             }
+        }
+
+        function clearTimers() {
+            startTime1 = null;
+            startTime2 = null;
+            if (timer1Interval) {
+                clearInterval(timer1Interval);
+                timer1Interval = null;
+            }
+            if (timer2Interval) {
+                clearInterval(timer2Interval);
+                timer2Interval = null;
+            }
+        }
+
+        function clearSocket() {
+            if (socket) {
+                socket.removeAllListeners();
+                socket.off('connect');
+                socket.off('connect_error');
+                socket.off('plot_update');
+                socket.off('training_complete');
+                socket.off('training_error');
+                socket.off('training_stopped');
+                socket.close();
+                socket = null;
+            }
+        }
+
+        function resetData() {
+            model1Data = {
+                train_losses: [],
+                train_accuracies: [],
+                val_losses: [],
+                val_accuracies: []
+            };
+            model2Data = {
+                train_losses: [],
+                train_accuracies: [],
+                val_losses: [],
+                val_accuracies: []
+            };
+            isTraining = false;
         }
 
         function resetUI() {

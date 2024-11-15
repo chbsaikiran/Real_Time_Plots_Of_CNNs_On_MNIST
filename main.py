@@ -50,20 +50,30 @@ async def stop_training():
         # Set stop flag first
         stop_training = True
         
-        # Wait for threads to complete
-        for thread in training_threads:
-            if thread.is_alive():
-                thread.join(timeout=2.0)  # Increased timeout
+        # Wait for threads to complete with timeout
+        if training_threads:
+            for thread in training_threads:
+                if thread.is_alive():
+                    thread.join(timeout=1.0)
         
         # Clear resources
         if global_queue:
             while not global_queue.empty():
-                _ = global_queue.get()
+                try:
+                    _ = global_queue.get_nowait()
+                except:
+                    break
             global_queue = None
         
-        # Clear models
+        # Clear models and data loaders
         model1 = None
         model2 = None
+        train_loader1 = None
+        val_loader1 = None
+        test_loader1 = None
+        train_loader2 = None
+        val_loader2 = None
+        test_loader2 = None
         
         # Reset flags and lists
         stop_training = False
@@ -72,15 +82,17 @@ async def stop_training():
         # Force garbage collection
         import gc
         gc.collect()
+        torch.cuda.empty_cache() if torch.cuda.is_available() else None
         
+        # Send stop signal to frontend
         await sio.emit('training_stopped', {"status": "Training stopped"})
-        
-        # Add small delay before returning
-        await asyncio.sleep(0.5)
         
         return JSONResponse({"status": "Training stopped"})
     except Exception as e:
         print(f"Error stopping training: {str(e)}")
+        # Reset flags even if error occurs
+        stop_training = False
+        training_threads = []
         return JSONResponse(
             status_code=500,
             content={"error": f"Error stopping training: {str(e)}"}
@@ -102,18 +114,23 @@ class ModelTrainer:
                 global model1, train_loader1, val_loader1, test_loader1
                 model1 = CNNModel(conv1, conv2, conv3).to(self.device)
                 model = model1
+                # Get data loaders only once
                 train_loader, val_loader, test_loader = get_data_loaders(batch_size)
                 train_loader1, val_loader1, test_loader1 = train_loader, val_loader, test_loader
             else:
                 global model2, train_loader2, val_loader2, test_loader2
                 model2 = CNNModel(conv1, conv2, conv3).to(self.device)
                 model = model2
+                # Get data loaders only once
                 train_loader, val_loader, test_loader = get_data_loaders(batch_size)
                 train_loader2, val_loader2, test_loader2 = train_loader, val_loader, test_loader
 
+            # Initialize optimizer with higher learning rate
             criterion = nn.CrossEntropyLoss()
-            optimizer = (optim.Adam(model.parameters()) if opt_type == "adam" 
-                       else optim.SGD(model.parameters(), lr=0.01))
+            if opt_type == "adam":
+                optimizer = optim.Adam(model.parameters(), lr=0.002)  # Increased from default 0.001
+            else:
+                optimizer = optim.SGD(model.parameters(), lr=0.02)  # Increased from 0.01
             
             # Add learning rate scheduler
             scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=2)

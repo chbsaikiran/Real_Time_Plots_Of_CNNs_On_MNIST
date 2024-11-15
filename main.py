@@ -131,32 +131,13 @@ class ModelTrainer:
             history = {
                 "train_loss": [], 
                 "train_acc": [],
-                "val_loss": [0],  # Initialize with a default value
-                "val_acc": [0],   # Initialize with a default value
+                "val_loss": [],  # Remove initial value
+                "val_acc": [],   # Remove initial value
                 "batch_count": 0,
                 "learning_rates": []
             }
             
-            # Get initial validation metrics
-            model.eval()
-            val_loss = 0
-            correct = 0
-            total = 0
-            with torch.no_grad():
-                for data, target in val_loader:
-                    data, target = data.to(self.device), target.to(self.device)
-                    output = model(data)
-                    val_loss += criterion(output, target).item()
-                    pred = output.max(1)[1]
-                    correct += pred.eq(target).sum().item()
-                    total += target.size(0)
-            
-            val_loss /= len(val_loader)
-            val_acc = 100. * correct / total
-            history["val_loss"][0] = val_loss  # Update initial values
-            history["val_acc"][0] = val_acc    # Update initial values
-            
-            # Send initial status update
+            # Remove initial validation metrics calculation and just send initial status update
             queue.put({
                 "model": f"model{model_num}",
                 f"progress{model_num}": 0,
@@ -170,8 +151,8 @@ class ModelTrainer:
                 "total_batches": len(train_loader),
                 "current_loss": 0,
                 "current_acc": 0,
-                "current_val_loss": val_loss,
-                "current_val_acc": val_acc,
+                "current_val_loss": 0,
+                "current_val_acc": 0,
                 "current_lr": optimizer.param_groups[0]['lr']
             })
             

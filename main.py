@@ -16,6 +16,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import numpy as np
 import io
 import base64
+import time
 
 # Create FastAPI and SocketIO apps
 app = FastAPI()
@@ -36,6 +37,42 @@ test_loader1 = None
 train_loader2 = None
 val_loader2 = None
 test_loader2 = None
+
+# Add these global variables at the top
+stop_training = False
+training_threads = []
+global_queue = None
+
+@app.get("/stop_training")
+async def stop_training():
+    global stop_training, training_threads, global_queue
+    try:
+        stop_training = True
+        
+        # Wait for threads to complete
+        for thread in training_threads:
+            if thread.is_alive():
+                thread.join(timeout=1.0)
+        
+        # Clear the queue of any remaining messages if it exists
+        if global_queue:
+            while not global_queue.empty():
+                _ = global_queue.get()
+        
+        # Reset stop flag and clear thread list
+        stop_training = False
+        training_threads = []
+        
+        # Send a final stop message to frontend
+        await sio.emit('training_stopped', {"status": "Training stopped"})
+        
+        return JSONResponse({"status": "Training stopped"})
+    except Exception as e:
+        print(f"Error stopping training: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Error stopping training: {str(e)}"}
+        )
 
 # Move ModelTrainer class outside the endpoint
 class ModelTrainer:
@@ -94,13 +131,13 @@ class ModelTrainer:
             history = {
                 "train_loss": [], 
                 "train_acc": [],
-                "val_loss": [], 
-                "val_acc": [],
+                "val_loss": [0],  # Initialize with a default value
+                "val_acc": [0],   # Initialize with a default value
                 "batch_count": 0,
                 "learning_rates": []
             }
             
-            # Initial validation
+            # Get initial validation metrics
             model.eval()
             val_loss = 0
             correct = 0
@@ -116,54 +153,90 @@ class ModelTrainer:
             
             val_loss /= len(val_loader)
             val_acc = 100. * correct / total
-            history["val_loss"].append(val_loss)
-            history["val_acc"].append(val_acc)
-            history["learning_rates"].append(optimizer.param_groups[0]['lr'])
+            history["val_loss"][0] = val_loss  # Update initial values
+            history["val_acc"][0] = val_acc    # Update initial values
             
-            # Training loop
+            # Send initial status update
+            queue.put({
+                "model": f"model{model_num}",
+                f"progress{model_num}": 0,
+                "train_losses": history["train_loss"],
+                "train_accuracies": history["train_acc"],
+                "val_losses": history["val_loss"],
+                "val_accuracies": history["val_acc"],
+                "epoch": 1,
+                "total_epochs": epochs,
+                "batch": 1,
+                "total_batches": len(train_loader),
+                "current_loss": 0,
+                "current_acc": 0,
+                "current_val_loss": val_loss,
+                "current_val_acc": val_acc,
+                "current_lr": optimizer.param_groups[0]['lr']
+            })
+            
+            # Ensure we wait a bit for the UI to update
+            time.sleep(0.1)
+            
+            # Start actual training
             for epoch in range(epochs):
-                model.train()
-                for batch_idx, (data, target) in enumerate(train_loader):
-                    data, target = data.to(self.device), target.to(self.device)
-                    optimizer.zero_grad()
-                    output = model(data)
-                    loss = criterion(output, target)
-                    loss.backward()
-                    optimizer.step()
-                    
-                    # Calculate accuracy
-                    pred = output.max(1)[1]
-                    acc = 100. * pred.eq(target).sum().item() / len(target)
-                    
-                    batch_size = target.size(0)
-                    running_loss = (running_loss * total_samples + loss.item() * batch_size) / (total_samples + batch_size)
-                    running_acc = (running_acc * total_samples + acc * batch_size) / (total_samples + batch_size)
-                    total_samples += batch_size
-                    history["batch_count"] += 1
-                    
-                    if batch_idx % 250 == 0 or batch_idx == len(train_loader) - 1:
-                        history["train_loss"].append(running_loss)
-                        history["train_acc"].append(running_acc)
-                        progress = min(100, (history["batch_count"] * 100) // total_batches)
+                model.train()  # Ensure model is in training mode
+                for batch_idx, (data, target) in enumerate(train_loader, 1):
+                    try:
+                        # Check stop flag
+                        if stop_training:
+                            print(f"Training stopped for model{model_num}")
+                            queue.put({
+                                "model": f"model{model_num}", 
+                                "status": "stopped"
+                            })
+                            return
+
+                        # Training step
+                        data, target = data.to(self.device), target.to(self.device)
+                        optimizer.zero_grad()
+                        output = model(data)
+                        loss = criterion(output, target)
+                        loss.backward()
+                        optimizer.step()
                         
-                        queue.put({
-                            "model": f"model{model_num}",
-                            f"progress{model_num}": progress,
-                            "train_losses": history["train_loss"],
-                            "train_accuracies": history["train_acc"],
-                            "val_losses": history["val_loss"],
-                            "val_accuracies": history["val_acc"],
-                            "epoch": epoch + 1,
-                            "total_epochs": epochs,
-                            "batch": batch_idx + 1,
-                            "total_batches": len(train_loader),
-                            "current_loss": running_loss,
-                            "current_acc": running_acc,
-                            "current_val_loss": history["val_loss"][-1],
-                            "current_val_acc": history["val_acc"][-1],
-                            "current_lr": optimizer.param_groups[0]['lr']
-                        })
-                
+                        # Calculate accuracy
+                        pred = output.max(1)[1]
+                        acc = 100. * pred.eq(target).sum().item() / len(target)
+                        
+                        batch_size = target.size(0)
+                        running_loss = (running_loss * total_samples + loss.item() * batch_size) / (total_samples + batch_size)
+                        running_acc = (running_acc * total_samples + acc * batch_size) / (total_samples + batch_size)
+                        total_samples += batch_size
+                        history["batch_count"] += 1
+                        
+                        if batch_idx % 250 == 0 or batch_idx == len(train_loader):
+                            history["train_loss"].append(running_loss)
+                            history["train_acc"].append(running_acc)
+                            progress = min(100, (history["batch_count"] * 100) // total_batches)
+                            
+                            queue.put({
+                                "model": f"model{model_num}",
+                                f"progress{model_num}": progress,
+                                "train_losses": history["train_loss"],
+                                "train_accuracies": history["train_acc"],
+                                "val_losses": history["val_loss"],
+                                "val_accuracies": history["val_acc"],
+                                "epoch": epoch + 1,
+                                "total_epochs": epochs,
+                                "batch": batch_idx,
+                                "total_batches": len(train_loader),
+                                "current_loss": running_loss,
+                                "current_acc": running_acc,
+                                "current_val_loss": history["val_loss"][-1],
+                                "current_val_acc": history["val_acc"][-1],
+                                "current_lr": optimizer.param_groups[0]['lr']
+                            })
+
+                    except Exception as e:
+                        print(f"Error in batch training for model{model_num}: {str(e)}")
+                        continue
+
                 # Validation at end of epoch
                 model.eval()
                 val_loss = 0
@@ -207,13 +280,15 @@ class ModelTrainer:
                     "current_lr": current_lr
                 })
 
-            # Signal completion
-            queue.put({
-                "model": f"model{model_num}", 
-                "status": "complete"
-            })
-            
+            # Only send completion if training wasn't stopped
+            if not stop_training:
+                queue.put({
+                    "model": f"model{model_num}", 
+                    "status": "complete"
+                })
+
         except Exception as e:
+            print(f"Error in train_model_thread for model{model_num}: {str(e)}")
             queue.put({"model": f"model{model_num}", "error": str(e)})
 
 @app.get("/")
@@ -250,27 +325,49 @@ async def train_models(
                 # Check queue more frequently
                 for _ in range(10):
                     try:
+                        if queue.empty():
+                            await asyncio.sleep(0.01)  # Short sleep if queue is empty
+                            continue
+                        
                         data = queue.get_nowait()
+                        print(f"Processing queue data: {data}")  # Debug print
+                        
                         if "error" in data:
+                            print(f"Error in training: {data['error']}")
                             await sio.emit('training_error', data)
                             return
                         elif "status" in data and data["status"] == "complete":
+                            print(f"Model completed: {data['model']}")
                             completed_models += 1
                             await sio.emit('training_complete', data)
                             if completed_models == 2:
+                                print("Both models completed")
                                 await sio.emit('training_complete', {"status": "all_complete"})
                         else:
+                            print(f"Sending plot update for {data.get('model', 'unknown')}")
                             await sio.emit('plot_update', data)
-                    except:
+                            await asyncio.sleep(0.01)  # Small delay after sending data
+                    except queue.Empty:
+                        await asyncio.sleep(0.01)  # Sleep if queue is empty
+                        continue
+                    except Exception as e:
+                        print(f"Error processing data: {str(e)}")
                         continue
                 await asyncio.sleep(0.01)
             except Exception as e:
-                print(f"Error in process_queue: {str(e)}")
+                print(f"Error in process_queue outer loop: {str(e)}")
                 await asyncio.sleep(0.01)
 
+        print("Queue processing completed")
+
     async def start_training():
+        global training_threads, stop_training, global_queue
         try:
+            stop_training = False
+            
+            print("Starting training process...")
             queue = Queue()
+            global_queue = queue
             trainer = ModelTrainer(device)
             
             # Create thread parameters
@@ -279,27 +376,33 @@ async def train_models(
             model2_params = (model2_conv1, model2_conv2, model2_conv3, 
                            model2_optimizer, model2_batch_size, model2_epochs, 2)
             
-            # Start threads
+            print("Creating training threads...")
             t1 = threading.Thread(target=trainer.train_model_thread, 
                                 args=(model1_params, queue))
             t2 = threading.Thread(target=trainer.train_model_thread, 
                                 args=(model2_params, queue))
             
+            training_threads = [t1, t2]
+            print("Starting threads...")
             t1.start()
             t2.start()
             
-            # Process queue in background
+            print("Processing queue...")
             await process_queue(queue)
             
-            # Wait for threads to complete
+            print("Waiting for threads to complete...")
             t1.join()
             t2.join()
+            
+            training_threads = []
+            print("Training completed")
 
         except Exception as e:
             print(f"Error in training: {str(e)}")
             await sio.emit('training_error', {"error": str(e)})
         finally:
-            # Cleanup
+            # Reset stop_training flag in finally block
+            stop_training = False
             if 'queue' in locals():
                 while not queue.empty():
                     _ = queue.get()

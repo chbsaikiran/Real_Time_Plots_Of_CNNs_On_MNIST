@@ -79,7 +79,10 @@
                     </div>
                 </div>
                 
-                <button id="train-button" onclick="startTraining()">Train Models</button>
+                <div class="button-group">
+                    <button id="train-button" onclick="startTraining()">Train Models</button>
+                    <button id="stop-button" onclick="stopTraining()" disabled>Stop Training</button>
+                </div>
                 
                 <div class="progress-container">
                     <div class="progress-section">
@@ -191,6 +194,7 @@
         let startTime2 = null;
         let timer1Interval = null;
         let timer2Interval = null;
+        let isTraining = false;
 
         function formatTime(ms) {
             let seconds = Math.floor(ms / 1000);
@@ -441,131 +445,118 @@
         }
 
         async function startTraining() {
-            // Reset UI state
-            document.getElementById('train-button').disabled = true;
-            document.getElementById('progress1').style.width = '0%';
-            document.getElementById('progress1').textContent = '0%';
-            document.getElementById('progress2').style.width = '0%';
-            document.getElementById('progress2').textContent = '0%';
-            
-            // Change initial status to "Starting training..."
-            document.getElementById('status1').textContent = 'Starting training...';
-            document.getElementById('status2').textContent = 'Starting training...';
-            
-            // Clear previous model summaries
-            document.querySelectorAll('.model-summary').forEach(el => el.remove());
-            
-            // Reset metrics display
-            document.querySelector('#metrics1 .loss').textContent = 'Loss: -';
-            document.querySelector('#metrics1 .accuracy').textContent = 'Accuracy: -';
-            document.querySelector('#metrics2 .loss').textContent = 'Loss: -';
-            document.querySelector('#metrics2 .accuracy').textContent = 'Accuracy: -';
-
-            // Reset plot data
-            model1Data.train_losses = [];
-            model1Data.train_accuracies = [];
-            model1Data.val_losses = [];
-            model1Data.val_accuracies = [];
-            model2Data.train_losses = [];
-            model2Data.train_accuracies = [];
-            model2Data.val_losses = [];
-            model2Data.val_accuracies = [];
-
-            // Initialize plots
-            initPlots();
-
-            // Close existing socket connection if any
-            if (socket) {
-                socket.close();
+            if (isTraining) {
+                return;
             }
-
-            // Setup new WebSocket connection
-            socket = io();
-
-            // Reset timers
-            startTime1 = null;
-            startTime2 = null;
-            if (timer1Interval) clearInterval(timer1Interval);
-            if (timer2Interval) clearInterval(timer2Interval);
-            document.getElementById('timer1').textContent = 'Time: 00:00:00';
-            document.getElementById('timer2').textContent = 'Time: 00:00:00';
-
-            socket.on('plot_update', function(data) {
-                if (data.type === "model_summary") {
-                    displayModelSummary(data.summary, data.model === "model1" ? 1 : 2, data.config);
-                    // Start timer immediately after receiving model summary
-                    if (data.model === "model1" && !startTime1) {
-                        startTime1 = Date.now();
-                        timer1Interval = setInterval(updateTimer1, 1000);
-                    } else if (data.model === "model2" && !startTime2) {
-                        startTime2 = Date.now();
-                        timer2Interval = setInterval(updateTimer2, 1000);
-                    }
-                    return;
-                }
-                // Update progress bars and status
-                if (data.model === "model1") {
-                    document.getElementById('progress1').style.width = `${data.progress1}%`;
-                    document.getElementById('progress1').textContent = `${data.progress1}%`;
-                    document.getElementById('status1').textContent = 
-                        `Epoch ${data.epoch}/${data.total_epochs}, Batch ${data.batch}/${data.total_batches}`;
-                    document.querySelector('#metrics1 .loss').textContent = 
-                        `Loss: ${data.current_loss.toFixed(4)}`;
-                    document.querySelector('#metrics1 .accuracy').textContent = 
-                        `Accuracy: ${data.current_acc.toFixed(2)}%`;
-                    document.querySelector('#metrics1 .learning-rate').textContent = 
-                        `LR: ${data.current_lr.toExponential(2)}`;
-                } else {
-                    document.getElementById('progress2').style.width = `${data.progress2}%`;
-                    document.getElementById('progress2').textContent = `${data.progress2}%`;
-                    document.getElementById('status2').textContent = 
-                        `Epoch ${data.epoch}/${data.total_epochs}, Batch ${data.batch}/${data.total_batches}`;
-                    document.querySelector('#metrics2 .loss').textContent = 
-                        `Loss: ${data.current_loss.toFixed(4)}`;
-                    document.querySelector('#metrics2 .accuracy').textContent = 
-                        `Accuracy: ${data.current_acc.toFixed(2)}%`;
-                    document.querySelector('#metrics2 .learning-rate').textContent = 
-                        `LR: ${data.current_lr.toExponential(2)}`;
-                }
-
-                // Update plots
-                updatePlots(data);
-            });
-
-            socket.on('training_complete', function(data) {
-                // Stop timer for the completed model
-                if (data.model === "model1") {
-                    if (timer1Interval) {
-                        clearInterval(timer1Interval);
-                        timer1Interval = null;
-                    }
-                } else if (data.model === "model2") {
-                    if (timer2Interval) {
-                        clearInterval(timer2Interval);
-                        timer2Interval = null;
-                    }
-                }
-
-                // Only re-enable buttons when both models are complete
-                if (data.status === "all_complete") {
-                    document.getElementById('train-button').disabled = false;
-                    document.getElementById('test-button').disabled = false;
-                    document.getElementById('train-metrics-button').disabled = false;
-                    document.getElementById('test-metrics-button').disabled = false;
-                }
-            });
-
-            socket.on('training_error', function(data) {
-                console.error('Training error:', data.error);
-                alert('Error during training: ' + data.error);
-                document.getElementById('train-button').disabled = false;
-                // Reset status on error
-                document.getElementById('status1').textContent = 'Error starting training';
-                document.getElementById('status2').textContent = 'Error starting training';
-            });
-
-            // Move the form data collection and fetch call to the top
+            
             try {
+                // Reset UI state first
+                resetUI();
+                
+                // Setup WebSocket connection
+                if (socket) {
+                    socket.close();
+                }
+                socket = io();
+                
+                // Setup all socket listeners before starting training
+                socket.on('plot_update', function(data) {
+                    if (data.type === "model_summary") {
+                        displayModelSummary(data.summary, data.model === "model1" ? 1 : 2, data.config);
+                        // Start timer immediately after receiving model summary
+                        if (data.model === "model1" && !startTime1) {
+                            startTime1 = Date.now();
+                            timer1Interval = setInterval(updateTimer1, 1000);
+                        } else if (data.model === "model2" && !startTime2) {
+                            startTime2 = Date.now();
+                            timer2Interval = setInterval(updateTimer2, 1000);
+                        }
+                        return;
+                    }
+
+                    // Update progress bars and status
+                    if (data.model === "model1") {
+                        const progress = data.progress1 || 0;  // Use 0 if progress1 is undefined
+                        document.getElementById('progress1').style.width = `${progress}%`;
+                        document.getElementById('progress1').textContent = `${progress}%`;
+                        document.getElementById('status1').textContent = 
+                            `Epoch ${data.epoch || 0}/${data.total_epochs || 0}, Batch ${data.batch || 0}/${data.total_batches || 0}`;
+                        document.querySelector('#metrics1 .loss').textContent = 
+                            `Loss: ${(data.current_loss || 0).toFixed(4)}`;
+                        document.querySelector('#metrics1 .accuracy').textContent = 
+                            `Accuracy: ${(data.current_acc || 0).toFixed(2)}%`;
+                        document.querySelector('#metrics1 .learning-rate').textContent = 
+                            `LR: ${(data.current_lr || 0).toExponential(2)}`;
+                    } else {
+                        const progress = data.progress2 || 0;  // Use 0 if progress2 is undefined
+                        document.getElementById('progress2').style.width = `${progress}%`;
+                        document.getElementById('progress2').textContent = `${progress}%`;
+                        document.getElementById('status2').textContent = 
+                            `Epoch ${data.epoch || 0}/${data.total_epochs || 0}, Batch ${data.batch || 0}/${data.total_batches || 0}`;
+                        document.querySelector('#metrics2 .loss').textContent = 
+                            `Loss: ${(data.current_loss || 0).toFixed(4)}`;
+                        document.querySelector('#metrics2 .accuracy').textContent = 
+                            `Accuracy: ${(data.current_acc || 0).toFixed(2)}%`;
+                        document.querySelector('#metrics2 .learning-rate').textContent = 
+                            `LR: ${(data.current_lr || 0).toExponential(2)}`;
+                    }
+
+                    // Update plots
+                    updatePlots(data);
+                });
+
+                socket.on('training_complete', function(data) {
+                    // Stop timer for the completed model
+                    if (data.model === "model1") {
+                        if (timer1Interval) {
+                            clearInterval(timer1Interval);
+                            timer1Interval = null;
+                            startTime1 = null;  // Reset start time
+                        }
+                    } else if (data.model === "model2") {
+                        if (timer2Interval) {
+                            clearInterval(timer2Interval);
+                            timer2Interval = null;
+                            startTime2 = null;  // Reset start time
+                        }
+                    }
+
+                    // Only re-enable buttons when both models are complete
+                    if (data.status === "all_complete") {
+                        isTraining = false;
+                        document.getElementById('train-button').disabled = false;
+                        document.getElementById('stop-button').disabled = true;
+                        document.getElementById('test-button').disabled = false;
+                        document.getElementById('train-metrics-button').disabled = false;
+                        document.getElementById('test-metrics-button').disabled = false;
+                    }
+                });
+
+                socket.on('training_error', function(data) {
+                    console.error('Training error:', data.error);
+                    alert('Error during training: ' + data.error);
+                    isTraining = false;
+                    document.getElementById('train-button').disabled = false;
+                    document.getElementById('stop-button').disabled = true;
+                });
+
+                // Add training_stopped handler here inside startTraining
+                socket.on('training_stopped', function(data) {
+                    console.log('Training stopped by server');
+                    isTraining = false;
+                    document.getElementById('train-button').disabled = false;
+                    document.getElementById('stop-button').disabled = true;
+                });
+
+                // Wait for socket to connect
+                await new Promise((resolve, reject) => {
+                    socket.on('connect', resolve);
+                    socket.on('connect_error', reject);
+                    // Add timeout
+                    setTimeout(() => reject(new Error('Socket connection timeout')), 5000);
+                });
+
+                // Start the training process
                 const formData = new FormData();
                 document.querySelectorAll('#model1-form input, #model1-form select').forEach(input => {
                     formData.append(input.name, input.value);
@@ -579,14 +570,103 @@
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
+                
+                isTraining = true;
+                document.getElementById('train-button').disabled = true;
+                document.getElementById('stop-button').disabled = false;
+                
             } catch (error) {
                 console.error('Error:', error);
                 alert('Error starting training: ' + error.message);
+                isTraining = false;
                 document.getElementById('train-button').disabled = false;
-                // Reset status on error
+                document.getElementById('stop-button').disabled = true;
                 document.getElementById('status1').textContent = 'Error starting training';
                 document.getElementById('status2').textContent = 'Error starting training';
             }
+        }
+
+        async function stopTraining() {
+            try {
+                const response = await fetch('/stop_training');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                // Disable stop button and enable train button
+                document.getElementById('stop-button').disabled = true;
+                document.getElementById('train-button').disabled = false;
+                
+                // Reset UI
+                resetUI();
+                
+                // Reset timer variables
+                startTime1 = null;
+                startTime2 = null;
+                if (timer1Interval) {
+                    clearInterval(timer1Interval);
+                    timer1Interval = null;
+                }
+                if (timer2Interval) {
+                    clearInterval(timer2Interval);
+                    timer2Interval = null;
+                }
+                
+                // Reset data
+                model1Data = {
+                    train_losses: [],
+                    train_accuracies: [],
+                    val_losses: [],
+                    val_accuracies: []
+                };
+                model2Data = {
+                    train_losses: [],
+                    train_accuracies: [],
+                    val_losses: [],
+                    val_accuracies: []
+                };
+                
+                // Close and remove socket connection
+                if (socket) {
+                    socket.off('plot_update');  // Remove all plot_update listeners
+                    socket.off('training_complete');  // Remove all training_complete listeners
+                    socket.off('training_error');  // Remove all training_error listeners
+                    socket.close();
+                    socket = null;
+                }
+                
+                isTraining = false;
+            } catch (error) {
+                console.error('Error stopping training:', error);
+            }
+        }
+
+        function resetUI() {
+            // Reset progress bars
+            document.getElementById('progress1').style.width = '0%';
+            document.getElementById('progress1').textContent = '0%';
+            document.getElementById('progress2').style.width = '0%';
+            document.getElementById('progress2').textContent = '0%';
+            
+            // Reset status
+            document.getElementById('status1').textContent = 'Training stopped';
+            document.getElementById('status2').textContent = 'Training stopped';
+            
+            // Reset metrics
+            document.querySelector('#metrics1 .loss').textContent = 'Loss: -';
+            document.querySelector('#metrics1 .accuracy').textContent = 'Accuracy: -';
+            document.querySelector('#metrics2 .loss').textContent = 'Loss: -';
+            document.querySelector('#metrics2 .accuracy').textContent = 'Accuracy: -';
+            
+            // Clear plots
+            initPlots();
+            
+            // Reset timers display
+            document.getElementById('timer1').textContent = 'Time: 00:00:00';
+            document.getElementById('timer2').textContent = 'Time: 00:00:00';
+            
+            // Clear model summaries
+            document.querySelectorAll('.model-summary').forEach(el => el.remove());
         }
 
         async function showTestResults() {

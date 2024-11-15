@@ -541,4 +541,28 @@ button:disabled {
 
 .plots-section + .action-buttons {
     margin-top: 40px;
+}
+
+.button-group {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.button-group button {
+    width: 150px;
+    margin: 0;
+}
+
+#stop-button {
+    background-color: #e74c3c;
+}
+
+#stop-button:hover {
+    background-color: #c0392b;
+}
+
+#stop-button:disabled {
+    background-color: #bdc3c7;
 } 

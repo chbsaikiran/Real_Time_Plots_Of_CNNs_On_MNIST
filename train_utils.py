@@ -33,7 +33,7 @@ def get_data_loaders(batch_size):
     train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size])
     
     # Use larger batch sizes for validation
-    val_batch_size = min(batch_size * 8, 1024)  # Cap the maximum batch size
+    val_batch_size = min(batch_size, 1024)  # Cap the maximum batch size
     
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, **kwargs)
     

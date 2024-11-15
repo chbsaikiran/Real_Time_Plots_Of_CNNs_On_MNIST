@@ -223,11 +223,11 @@ class ModelTrainer:
                         total_samples += batch_size
                         history["batch_count"] += 1
 
-                        if ((batch_idx % 250 == 0 or batch_idx == len(train_loader)) and epoch == 0):
+                        if ((batch_idx % 50 == 0 or batch_idx == len(train_loader)) and epoch == 0):
                             history["train_loss"].append(running_loss)
                             history["train_acc"].append(running_acc)
                         
-                        if ((batch_idx % 250 == 0 or batch_idx == len(train_loader)) and (epochs == 1 or epoch > 0)):
+                        if ((batch_idx % 50 == 0 or batch_idx == len(train_loader)) and (epochs == 1 or epoch > 0)):
                             history["train_loss"].append(running_loss)
                             history["train_acc"].append(running_acc)
                             progress = min(100, (history["batch_count"] * 100) // total_batches)

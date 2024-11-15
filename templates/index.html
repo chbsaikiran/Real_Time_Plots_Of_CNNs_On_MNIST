@@ -36,7 +36,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Batch Size:</label>
-                                <input type="number" name="model1_batch_size" value="64" min="1">
+                                <input type="number" name="model1_batch_size" value="512" min="1">
                             </div>
                             <div class="form-group">
                                 <label>Epochs:</label>
@@ -69,7 +69,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Batch Size:</label>
-                                <input type="number" name="model2_batch_size" value="64" min="1">
+                                <input type="number" name="model2_batch_size" value="512" min="1">
                             </div>
                             <div class="form-group">
                                 <label>Epochs:</label>
@@ -271,7 +271,7 @@
                     title: 'Training Loss',
                     xaxis: {
                         title: {
-                            text: 'Batch (x250)',
+                            text: 'Batch (x50)',
                             font: { size: 12, color: '#2c3e50' },
                             standoff: 20
                         },
@@ -297,7 +297,7 @@
                     title: 'Training Accuracy',
                     xaxis: {
                         title: {
-                            text: 'Batch (x250)',
+                            text: 'Batch (x50)',
                             font: { size: 12, color: '#2c3e50' },
                             standoff: 20
                         },
@@ -379,7 +379,7 @@
             const layoutUpdate = {
                 xaxis: {
                     title: {
-                        text: 'Batch (x250)',
+                        text: 'Batch (x50)',
                         font: { size: 12, color: '#2c3e50' },
                         standoff: 20
                     },

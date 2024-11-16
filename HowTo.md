@@ -20,3 +20,7 @@ uvicorn main:app --reload
   - Optimizer selection (Adam/SGD)
   - Batch size
   - Number of epochs
+  
+  
+## Demo Video Link
+https://youtu.be/RnX9DmR-ogA
